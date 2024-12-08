@@ -18,10 +18,11 @@ options = {
     'min_duration': 120,  # Minimum duration for each note (in ticks, default: 240)
     'max_duration': 240,  # Maximum duration for each note (in ticks, default: 480)
     'sustain_duration': 1920,  # Duration for sustained notes (optional, default: 1920)
-    'timing_variance': 15,  # Variance in note timing (default: 15 ticks)
-    'note_spacing': 0,  # 1/16 note spacing
-    'swing_strength': 0.4,  # Strength of the swing/groove applied (default: 0.4 for subtle swing)
-    'velocity_variance': 15  # Controls variation in note velocity
+    'timing_variance': 10,
+    'rhythmic_density': 4,  # 1/16 note arpeggiation
+    'swing_strength': 0.4,
+    'velocity_variance': 10,
+    'pitch_wobble_strength': 150  # Subtle pitch wobble strength
 }
 
 # Run the script
