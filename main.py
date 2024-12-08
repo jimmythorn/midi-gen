@@ -3,25 +3,25 @@ from generate_midi import generate_midi_with_options
 # Define variables for customization
 bars = 16  # Number of bars to generate
 bpm = 120  # Beats per minute (tempo)
-notes = [('C4', 480), ('E4', 480), ('G4', 480), ('A4', 480)]  # Notes for the progression
+notes = [('E4', 480), ('A4', 480), ('D4', 480), ('B4', 480)]  # Notes for the progression
 
 # Define the output path as a variable
-output_path = './generated/generated_midi_pad_style.mid'  # You can change this path as needed
+output_path = './generated/generated_midi.mid'  # You can change this path as needed
 
 # Example usage with customizable variables for bars, bpm, and notes
 options = {
-    'style': 'rock',  # Set the style to 'pad'
-    'notes': notes,  # Use the notes defined above
-    'swing_ratio': 0.55,
-    'timing_variance': 40,
-    'glitch_probability': 0.86,
-    'glitch_duration_reduction': 0.6,
-    'bpm': bpm,  # Use the bpm defined above
-    'output_path': output_path,  # Use the output path variable here
-    'bars': bars,  # Use the bars defined above
-    'min_duration': 240,  # Minimum note duration (half beat)
-    'max_duration': 960,  # Maximum note duration (two beats)
-    'sustain_duration': 1920  # Sustain duration for pad style
+    'notes': notes,  # A list of notes and their durations (in ticks)
+    'style': 'hip_hop',  # Style of music (e.g., 'hip_hop', 'classical', 'rock')
+    'bpm': bpm,  # Beats per minute (tempo of the piece)
+    'output_path': output_path,  # Path to save the generated MIDI file
+    'bars': bars,  # Number of bars in the piece (default: 16 bars)
+    'min_duration': 120,  # Minimum duration for each note (in ticks, default: 240)
+    'max_duration': 240,  # Maximum duration for each note (in ticks, default: 480)
+    'sustain_duration': 1920,  # Duration for sustained notes (optional, default: 1920)
+    'timing_variance': 15,  # Variance in note timing (default: 15 ticks)
+    'note_spacing': 0,  # 1/16 note spacing
+    'swing_strength': 0.4,  # Strength of the swing/groove applied (default: 0.4 for subtle swing)
+    'velocity_variance': 15  # Controls variation in note velocity
 }
 
 # Run the script
