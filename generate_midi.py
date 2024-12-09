@@ -4,7 +4,8 @@ from mido import Message, MidiFile, MidiTrack
 def generate_midi_with_options(options):
     """
     Generate a MIDI file with arpeggiation, melodies, timing variance, groove, and rhythmic-based features.
-    Adds a subtle pitch wobble to the first note of each bar.
+    Adds a subtle pitch wobble to the first note of each bar. 
+    Supports various modes (Ionian, Dorian, Phrygian, etc.).
     """
     # Extract options
     notes = options.get('notes', [('C4', 480), ('E4', 480), ('G4', 480), ('C5', 480)])
@@ -17,6 +18,7 @@ def generate_midi_with_options(options):
     velocity_variance = options.get('velocity_variance', 10)  # Variance in note velocity
     rhythmic_density = options.get('rhythmic_density', 4)  # Control rhythmic density (1/8, 1/16, etc.)
     pitch_wobble_strength = options.get('pitch_wobble_strength', 150)  # Strength of pitch wobble (range 0 to 8191)
+    mode = options.get('mode', 'ionian')  # Default to Ionian (Major)
 
     # Constants
     ticks_per_beat = 480  # Standard resolution for most MIDI files
@@ -41,7 +43,28 @@ def generate_midi_with_options(options):
         octave = int(note[-1])
         return 12 * (octave + 1) + note_to_midi[pitch]
 
-    # Generate arpeggios with melody variations
+    # Define modes
+    modes = {
+        'ionian': [0, 2, 4, 5, 7, 9, 11],        # Major Scale
+        'dorian': [0, 2, 3, 5, 7, 9, 10],        # Dorian
+        'phrygian': [0, 1, 3, 5, 7, 8, 10],      # Phrygian
+        'lydian': [0, 2, 4, 6, 7, 9, 11],        # Lydian
+        'mixolydian': [0, 2, 4, 5, 7, 9, 10],    # Mixolydian
+        'aeolian': [0, 2, 3, 5, 7, 8, 10],       # Natural Minor Scale
+        'locrian': [0, 1, 3, 5, 6, 8, 10]        # Locrian
+    }
+
+    # Function to generate notes in a mode
+    def generate_mode_scale(root_note, mode):
+        root_note_number = note_name_to_number(root_note)
+        scale = [root_note_number + interval for interval in modes[mode]]
+        scale = [note % 12 for note in scale]  # Wrap around the 12-note octave
+        return scale
+
+    # Generate the scale based on the selected mode
+    mode_scale = generate_mode_scale(notes[0][0], mode)
+
+    # Generate arpeggios with melody variations based on the mode
     def arpeggiate_with_melody(notes, scale):
         # Convert notes to MIDI numbers
         base_notes = [note_name_to_number(note[0]) for note in notes]
@@ -60,17 +83,8 @@ def generate_midi_with_options(options):
                 arpeggio_with_rhythm.append(note)
         return arpeggio_with_rhythm
 
-    # Style-specific modifications
-    scale = [note_name_to_number(n) for n in ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']]
-    if style == 'hip_hop':
-        timing_variance = 60
-    elif style == 'classical':
-        timing_variance = 10
-    elif style == 'rock':
-        timing_variance = 40
-
     # Generate the arpeggio sequence with rhythmic focus
-    arpeggiated_notes = arpeggiate_with_melody(notes, scale)
+    arpeggiated_notes = arpeggiate_with_melody(notes, mode_scale)
 
     # Add notes to the track
     time_elapsed = 0
@@ -126,3 +140,4 @@ def generate_midi_with_options(options):
     # Save the MIDI file
     mid.save(output_path)
     print(f"MIDI file generated and saved to {output_path}")
+
