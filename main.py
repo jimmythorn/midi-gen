@@ -1,39 +1,63 @@
-from generate_midi import generate_midi_with_options
+from .arpeggio_generation import create_arp
+from typing import Dict
 
-# Define variables for customization
-bars = 16  # Number of bars to generate
-bpm = 120  # Beats per minute (tempo)
-notes = [('E4', 480), ('A4', 480), ('D4', 480), ('B4', 480)]  # Notes for the progression
-
-# Define the output path as a variable
-output_path = './generated/generated_midi.mid'  # You can change this path as needed
-
-# MODES
-# Ionian: This is the standard Major scale (e.g., C Major, D Major, etc.). It's a bright, happy sound.
-# Dorian: A minor scale with a major 6th (e.g., D Dorian, E Dorian, etc.). It’s often used in jazz and blues, giving a minor but slightly optimistic sound.
-# Phrygian: A minor scale with a lowered 2nd (e.g., E Phrygian, F Phrygian, etc.). This gives a darker, exotic flavor.
-# Lydian: A major scale with a raised 4th (e.g., F Lydian, G Lydian, etc.). This has a dreamy, bright sound.
-# Mixolydian: A major scale with a lowered 7th (e.g., G Mixolydian, A Mixolydian, etc.). It has a bluesy or rock feel.
-# Aeolian: The Natural Minor scale (e.g., A Minor, B Minor, etc.). It gives a more somber or melancholic sound.
-# Locrian: A minor scale with a lowered 2nd and 5th (e.g., B Locrian, C Locrian, etc.). This scale is often avoided due to its unstable sound.
-
-# Example usage with customizable variables for bars, bpm, and notes
-options = {
-    'notes': notes,  # A list of notes and their durations (in ticks)
-    'style': 'hip_hop',  # Style of music (e.g., 'hip_hop', 'classical', 'rock')
-    'bpm': bpm,  # Beats per minute (tempo of the piece)
-    'output_path': output_path,  # Path to save the generated MIDI file
-    'bars': bars,  # Number of bars in the piece (default: 16 bars)
-    'min_duration': 120,  # Minimum duration for each note (in ticks, default: 240)
-    'max_duration': 240,  # Maximum duration for each note (in ticks, default: 480)
-    'sustain_duration': 1920,  # Duration for sustained notes (optional, default: 1920)
-    'timing_variance': 10,
-    'rhythmic_density': 4,  # 1/16 note arpeggiation
-    'swing_strength': 0.4,
-    'velocity_variance': 10,
-    'pitch_wobble_strength': 150,  # Subtle pitch wobble strength
-    'mode': 'mixolydian',
-}
-
-# Run the script
-generate_midi_with_options(options)
+if __name__ == "__main__":
+    options: Dict = {
+        # 'root': MIDI note number for the root note of the scale if 'root_notes' is not provided (0-127, default 0 for C)
+        'root': 0,
+        
+        # 'root_notes': List of note strings for root notes of each bar, defaults to using 'root' for all bars
+        'root_notes': ["E4", "D#3", "E3", "B4"],  # e.g., ['E3', 'G4', 'B3'] for different root notes per bar
+        
+        # 'mode': Musical mode for the scale (
+            # 'major' - Happy, bright;
+            # 'minor' - Sad, introspective;
+            # 'dorian' - Jazz, bluesy;
+            # 'phrygian' - Spanish, exotic;
+            # 'lydian' - Dreamy, ethereal;
+            # 'mixolydian' - Folk, rock;
+            # 'locrian' - Dark, dissonant
+        # )
+        'mode': 'minor',
+        
+        # 'arp_steps': Number of steps in arpeggio sequence and notes per bar (default 16)
+        'arp_steps': 8,
+        
+        # 'min_octave': Minimum octave for note generation (default 3)
+        'min_octave': 3,
+        
+        # 'max_octave': Maximum octave for note generation (default 5)
+        'max_octave': 5,
+        
+        # 'bpm': Beats per minute for tempo (positive integer, default 120)
+        'bpm': 120,
+        
+        # 'bars': Number of bars for the arpeggio (positive integer, default 16)
+        'bars': 16,
+        
+        # 'filename': Base name for the output file (string, will be modified with notes and path)
+        'filename': 'arpeggio.mid',
+        
+        # 'effects_config': List of dictionaries specifying effects and their parameters
+        # Example: [{'name': 'shimmer', 'wobble_range': 2, 'smooth_factor': 0.1},
+        #           {'name': 'humanize_velocity', 'humanization_range': 20}]
+        # To disable effects, provide an empty list: []
+        'effects_config': [
+            {'name': 'shimmer', 'wobble_range': 0, 'smooth_factor': 0.675}, # Set wobble_range to 0 to disable shimmer
+            {'name': 'humanize_velocity', 'humanization_range': 10}
+        ],
+        
+        # 'arp_mode': Arpeggiator mode ('up', 'down', 'up_down', 'random', 'order', default 'up')
+        'arp_mode': 'up_down',
+        
+        # 'range_octaves': Number of octaves to span with the arpeggio (default 1)
+        'range_octaves': 2,
+        
+        # 'evolution_rate': Rate at which the arpeggio evolves (0.0 to 1.0, where 0 is no evolution)
+        'evolution_rate': 0.35,
+        
+        # 'repetition_factor': Controls the level of repetition in the arpeggio (1 to 10, 10 being most repetitive)
+        'repetition_factor': 9,
+    }
+    
+    create_arp(options)
