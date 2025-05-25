@@ -1,10 +1,10 @@
 import os
-from .notes import note_str_to_midi, note_to_name
-from .arpeggio import create_arpeggio
-from .midi import create_midi_file
+from midi_gen.notes import note_str_to_midi, note_to_name
+from midi_gen.arpeggio import create_arpeggio
+from midi_gen.midi import create_midi_file
 from typing import Dict, List
-from .effects import ShimmerEffect, HumanizeVelocityEffect
-from .effects_base import MidiEffect
+from midi_gen.effects import ShimmerEffect, HumanizeVelocityEffect
+from midi_gen.effects_base import MidiEffect
 
 def create_arp(options: Dict):
     """

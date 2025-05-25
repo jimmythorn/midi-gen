@@ -1,4 +1,4 @@
-from .scale import get_scale
+from midi_gen.scale import get_scale
 import random
 import math
 

@@ -1,4 +1,9 @@
-from .arpeggio_generation import create_arp
+# import sys # Removed sys import
+# import os # Removed os import
+
+# Removed sys.path modification block
+
+from midi_gen.arpeggio_generation import create_arp # Updated to use package name
 from typing import Dict, List
 import questionary # Import questionary
 

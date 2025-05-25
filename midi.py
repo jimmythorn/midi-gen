@@ -2,7 +2,7 @@ import mido
 from typing import Dict, List
 import random
 import math
-from .effects_base import MidiEffect, NoteContext
+from midi_gen.effects_base import MidiEffect, NoteContext
 
 def calculate_note_length(bar_length: int, notes_per_bar: int) -> int:
     """
