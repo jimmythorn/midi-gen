@@ -11,13 +11,17 @@ def create_arp(options: Dict):
     Main function to generate MIDI arpeggio based on given options.
     """
     root = options.get('root', 0)
-    root_notes_str = options.get('root_notes', None)
+    root_notes_str_param = options.get('root_notes', None) # Renamed for clarity
     
-    # Convert string notes to MIDI numbers if root_notes is provided
-    if root_notes_str:
-        root_notes = [note_str_to_midi(note) for note in root_notes_str]
+    print(f"[DEBUG] root_notes_str_param from options: {root_notes_str_param}") # DEBUG PRINT
+
+    if root_notes_str_param: # This is a list of strings like ['E4', 'A4', ...]
+        root_notes = [note_str_to_midi(note) for note in root_notes_str_param]
     else:
-        root_notes = [root] * options.get('bars', 16)  # Use root for each bar if not specified
+        root_notes = [root] * options.get('bars', 16)
+    
+    print(f"[DEBUG] Processed root_notes (MIDI numbers): {root_notes}") # DEBUG PRINT
+    print(f"[DEBUG] Length of processed root_notes: {len(root_notes) if root_notes else 0}") # DEBUG PRINT
 
     mode = options.get('mode', 'major')
     arp_steps = options.get('arp_steps', 16)  # Number of steps in arpeggio sequence
@@ -45,19 +49,26 @@ def create_arp(options: Dict):
 
     arpeggios = []
     if root_notes:
-        # Calculate how many bars each root note in the list should cover
         # Ensure len(root_notes) is not zero to avoid DivisionByZeroError
-        bars_per_root_note_segment = bars // len(root_notes) if root_notes else bars
+        bars_per_root_note_segment = bars // len(root_notes) if len(root_notes) > 0 else bars
+        print(f"[DEBUG] Total bars: {bars}, Total root notes: {len(root_notes)}, Calculated bars_per_root_note_segment: {bars_per_root_note_segment}") # DEBUG PRINT
 
         for bar_idx, bar_root in enumerate(root_notes):
-            # Determine the number of bars for this specific root note segment
-            # This handles cases where bars is not perfectly divisible by len(root_notes)
-            # The last root note gets any remaining bars.
-            num_bars_for_this_segment = bars_per_root_note_segment
-            if bar_idx == len(root_notes) - 1: # If it's the last root note in the list
-                num_bars_for_this_segment = bars - (bars_per_root_note_segment * (len(root_notes) -1))
+            print(f"[DEBUG] Processing bar_idx: {bar_idx}, bar_root (MIDI): {bar_root}") # DEBUG PRINT
             
-            # Create one arpeggio pattern for this root note
+            num_bars_for_this_segment = bars_per_root_note_segment
+            # Adjust for the last segment to ensure total bars are met
+            if bar_idx == len(root_notes) - 1:
+                num_bars_for_this_segment = bars - (bars_per_root_note_segment * bar_idx)
+                # Ensure it's not negative if bars_per_root_note_segment * bar_idx > bars (e.g. if bars_per_root_note_segment was 0 due to too many root notes for few bars)
+                if num_bars_for_this_segment < 0: num_bars_for_this_segment = 0 
+            
+            print(f"[DEBUG] bar_idx: {bar_idx} - num_bars_for_this_segment: {num_bars_for_this_segment}") # DEBUG PRINT
+
+            if num_bars_for_this_segment == 0: # Skip if no bars allocated to this root note
+                print(f"[DEBUG] bar_idx: {bar_idx} - Skipped as num_bars_for_this_segment is 0.")
+                continue
+
             arpeggio_pattern = create_arpeggio(
                 bar_root, mode, arp_steps, min_octave, max_octave, 
                 arp_mode, range_octaves, use_chord_tones=use_chord_tones,
@@ -87,6 +98,7 @@ def create_arp(options: Dict):
                 elif arpeggio_pattern: # arp_steps is 0 or invalid, but pattern exists
                     arpeggios.extend(arpeggio_pattern) # Add whatever was generated
                 # If arpeggio_pattern is empty, nothing to add for this bar segment
+            print(f"[DEBUG] bar_idx: {bar_idx} - Length of arpeggios list after processing this root note: {len(arpeggios)}") # DEBUG PRINT
 
     else: # Single root note for all bars
         arpeggio_pattern = create_arpeggio(
