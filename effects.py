@@ -1,5 +1,5 @@
 import random
-from midi_gen.effects_base import MidiEffect, NoteContext
+from .effects_base import MidiEffect, NoteContext
 
 class ShimmerEffect(MidiEffect):
     def __init__(self, wobble_range: float = 2.0, smooth_factor: float = 0.1) -> None:

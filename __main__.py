@@ -3,13 +3,13 @@
 
 # Removed sys.path modification block
 
-from midi_gen.arpeggio_generation import create_arp # Updated to use package name
+from .arpeggio_generation import create_arp # Updated to use package name
 from typing import Dict, List
 import questionary # Import questionary
 
 # Default values from the previous argparse setup
 DEFAULT_ROOT = 0
-DEFAULT_ROOT_NOTES = ["E4", "D#3", "E3", "B4"]
+DEFAULT_ROOT_NOTES = ["E4", "A4", "D4", "G4"]
 DEFAULT_MODE = 'minor'
 MODE_CHOICES = ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian']
 DEFAULT_ARP_STEPS = 8
@@ -75,6 +75,15 @@ if __name__ == "__main__":
     evolution_rate = float(questionary.text("Evolution rate (0.0 to 1.0):", default=str(DEFAULT_EVOLUTION_RATE)).ask() or DEFAULT_EVOLUTION_RATE)
     repetition_factor = int(questionary.text("Repetition factor (1-10, 10=max repetition):", default=str(DEFAULT_REPETITION_FACTOR)).ask() or DEFAULT_REPETITION_FACTOR)
 
+    # Ask whether to use full scale or only chord tones (default is chord tones)
+    use_full_scale = questionary.confirm(
+        "Arpeggiate using all scale notes? (Default is No, only chord tones like 1,3,5 will be used)", 
+        default=False  # Default to False, meaning use_chord_tones will be True by default
+    ).ask()
+    # If user says No to full scale (default), then use_chord_tones is True.
+    # If user says Yes to full scale, then use_chord_tones is False.
+    use_chord_tones = not use_full_scale
+
     # Effects Configuration
     effects_config: List[Dict] = []
 
@@ -123,6 +132,7 @@ if __name__ == "__main__":
         'range_octaves': range_octaves,
         'evolution_rate': evolution_rate,
         'repetition_factor': repetition_factor,
+        'use_chord_tones': use_chord_tones
     }
     
     # If single root note was chosen, and root_notes list is empty/None, ensure options['root'] is used

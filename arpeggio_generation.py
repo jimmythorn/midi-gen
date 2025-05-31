@@ -1,10 +1,10 @@
 import os
-from midi_gen.notes import note_str_to_midi, note_to_name
-from midi_gen.arpeggio import create_arpeggio
-from midi_gen.midi import create_midi_file
+from .notes import note_str_to_midi, note_to_name
+from .arpeggio import create_arpeggio
+from .midi import create_midi_file
 from typing import Dict, List
-from midi_gen.effects import ShimmerEffect, HumanizeVelocityEffect
-from midi_gen.effects_base import MidiEffect
+from .effects import ShimmerEffect, HumanizeVelocityEffect
+from .effects_base import MidiEffect
 
 def create_arp(options: Dict):
     """
@@ -26,6 +26,10 @@ def create_arp(options: Dict):
     bars = options.get('bars', 16)
     arp_mode = options.get('arp_mode', 'up')
     range_octaves = options.get('range_octaves', 1)
+    # Get the use_chord_tones option, defaulting to True (use chord tones)
+    use_chord_tones = options.get('use_chord_tones', True)
+    evolution_rate = options.get('evolution_rate', 0.1) # Assuming evolution_rate is in options
+    repetition_factor = options.get('repetition_factor', 5) # Assuming repetition_factor is in options
 
     # Instantiate effects based on config
     active_effects: List[MidiEffect] = []
@@ -41,22 +45,67 @@ def create_arp(options: Dict):
 
     arpeggios = []
     if root_notes:
-        bars_per_note = bars // len(root_notes)
-        for bar_root in root_notes:
-            arpeggio = create_arpeggio(bar_root, mode, arp_steps, min_octave, max_octave, arp_mode, range_octaves)
+        # Calculate how many bars each root note in the list should cover
+        # Ensure len(root_notes) is not zero to avoid DivisionByZeroError
+        bars_per_root_note_segment = bars // len(root_notes) if root_notes else bars
+
+        for bar_idx, bar_root in enumerate(root_notes):
+            # Determine the number of bars for this specific root note segment
+            # This handles cases where bars is not perfectly divisible by len(root_notes)
+            # The last root note gets any remaining bars.
+            num_bars_for_this_segment = bars_per_root_note_segment
+            if bar_idx == len(root_notes) - 1: # If it's the last root note in the list
+                num_bars_for_this_segment = bars - (bars_per_root_note_segment * (len(root_notes) -1))
             
-            # Fill each segment with arpeggios to ensure 16 steps per bar
-            for _ in range(bars_per_note):
-                # Extend the arpeggio to fill 16 steps in each bar
-                arpeggios.extend(arpeggio * (16 // arp_steps))
-                arpeggios.extend(arpeggio[:16 % arp_steps])  # Add remaining notes from the arpeggio cycle
-    else:
-        # If no root_notes provided, use the single root for all bars
-        arpeggio = create_arpeggio(root, mode, arp_steps, min_octave, max_octave, arp_mode, range_octaves)
+            # Create one arpeggio pattern for this root note
+            arpeggio_pattern = create_arpeggio(
+                bar_root, mode, arp_steps, min_octave, max_octave, 
+                arp_mode, range_octaves, use_chord_tones=use_chord_tones,
+                evolution_rate=evolution_rate, repetition_factor=repetition_factor
+            )
+            
+            # Repeat or extend this pattern for the number of bars assigned to this root note
+            for _ in range(num_bars_for_this_segment):
+                if arp_steps > 0 and arpeggio_pattern: # Ensure arp_steps and pattern are valid
+                    # Extend the arpeggios list to fill 16 steps (or arp_steps if different) in each bar for this segment
+                    # This logic assumes create_arpeggio returns a pattern for ONE cycle (e.g. length of arp_steps)
+                    # and it needs to be tiled to fill the bar (typically 16 sixteenth notes).
+                    # If create_arpeggio already produces a full bar, this tiling is different.
+                    # Current create_arpeggio `length` parameter seems to be `arp_steps`.
+                    # Let's assume a bar has 16 steps for now, and arp_steps is the cycle length.
+                    # This tiling logic might need adjustment based on how create_arpeggio `length` is used.
+                    # For now, sticking to original tiling logic for 16 steps per bar:
+                    full_bar_steps = 16 # Standard 16th notes per bar
+                    if not arpeggio_pattern: # Safety if pattern is empty
+                        continue
+                    num_repeats = full_bar_steps // len(arpeggio_pattern)
+                    remainder_steps = full_bar_steps % len(arpeggio_pattern)
+                    
+                    for _ in range(num_repeats):
+                        arpeggios.extend(arpeggio_pattern)
+                    arpeggios.extend(arpeggio_pattern[:remainder_steps])
+                elif arpeggio_pattern: # arp_steps is 0 or invalid, but pattern exists
+                    arpeggios.extend(arpeggio_pattern) # Add whatever was generated
+                # If arpeggio_pattern is empty, nothing to add for this bar segment
+
+    else: # Single root note for all bars
+        arpeggio_pattern = create_arpeggio(
+            root, mode, arp_steps, min_octave, max_octave, 
+            arp_mode, range_octaves, use_chord_tones=use_chord_tones,
+            evolution_rate=evolution_rate, repetition_factor=repetition_factor
+        )
         for _ in range(bars):
-            # Extend the arpeggio to fill 16 steps in each bar
-            arpeggios.extend(arpeggio * (16 // arp_steps))
-            arpeggios.extend(arpeggio[:16 % arp_steps])  # Add remaining notes from the arpeggio cycle
+            if arp_steps > 0 and arpeggio_pattern:
+                full_bar_steps = 16
+                if not arpeggio_pattern:
+                    continue
+                num_repeats = full_bar_steps // len(arpeggio_pattern)
+                remainder_steps = full_bar_steps % len(arpeggio_pattern)
+                for _ in range(num_repeats):
+                    arpeggios.extend(arpeggio_pattern)
+                arpeggios.extend(arpeggio_pattern[:remainder_steps])
+            elif arpeggio_pattern:
+                 arpeggios.extend(arpeggio_pattern)
 
     # Ensure we don't exceed the total number of steps for the specified bars
     arpeggios = arpeggios[:bars * 16]  # Each bar should have 16 steps

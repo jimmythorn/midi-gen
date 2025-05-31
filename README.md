@@ -36,7 +36,7 @@ MIDI Arpeggio Generator that creates evolving musical patterns and outputs them 
 To run the script and generate a MIDI file, navigate to the project's root directory and execute:
 
 ```bash
-python main.py
+python -m midi_gen
 ```
 
 The script will launch an interactive command-line interface that will guide you through the configuration options step-by-step. Answer the prompts to customize the arpeggio generation.
