@@ -49,41 +49,88 @@ def create_arpeggio(root: int, mode: str, length: int = 16, min_octave: int = 4,
         if not arpeggio_source_notes: # Still empty after trying with min_octave
              arpeggio_source_notes = [(root % 12) + 4 * 12] # Default to C4 if all else fails
 
+    base_pattern = []
 
-    # Base Pattern Creation
-    pattern = []
-    if arp_mode == 'up':
-        pattern = arpeggio_source_notes
-    elif arp_mode == 'down':
-        pattern = list(reversed(arpeggio_source_notes))
-    elif arp_mode == 'up_down':
-        pattern = arpeggio_source_notes + list(reversed(arpeggio_source_notes[1:-1])) if len(arpeggio_source_notes) > 1 else arpeggio_source_notes
-    elif arp_mode == 'random':
-        pattern = [random.choice(arpeggio_source_notes) for _ in range(length)]
-    elif arp_mode == 'order': # Should this be 'random_order' or truly 'preserve order then shuffle'?
-        pattern = list(arpeggio_source_notes) # Make a copy to shuffle
-        random.shuffle(pattern)
-    else: # Default or unrecognized arp_mode
-        pattern = arpeggio_source_notes # Default to 'up'
+    if arp_mode == 'up_down':
+        # New 'up_down' logic: constructs a pattern of exactly 'length' notes.
+        # It does not use the subsequent repetition_factor block.
+        if not arpeggio_source_notes: # Safeguard
+             arpeggio_source_notes = [(root % 12) + min_octave * 12]
 
-    # Adjust for repetition_factor
-    if not pattern: # Handle cases where pattern might be empty due to empty arpeggio_source_notes
-        return [] # Or handle error appropriately
+        half_length = length // 2
+        remaining_length = length - half_length
 
-    repetition_factor = max(1, min(10, repetition_factor))
-    # Ensure pattern is long enough for the repetition logic, or handle short patterns
-    if len(pattern) > 0:
-        expanded_pattern = pattern * (length // len(pattern) + 1) if len(pattern) > 0 else []
-        if repetition_factor < 10:
-            for i in range(len(expanded_pattern)):
-                if random.random() > (repetition_factor / 10):
-                    # Ensure arpeggio_source_notes is not empty before choosing from it
-                    if arpeggio_source_notes: 
-                        expanded_pattern[i] = random.choice(arpeggio_source_notes)
-                    # else: keep original note or handle error/default
-        base_pattern = expanded_pattern[:length]
+        source_up = list(arpeggio_source_notes)
+        for i in range(half_length):
+            if source_up: # Check if source_up is not empty
+                base_pattern.append(source_up[i % len(source_up)])
+            elif arpeggio_source_notes: # Fallback to original source if source_up became empty (should not happen)
+                base_pattern.append(arpeggio_source_notes[i % len(arpeggio_source_notes)])
+            else: # Absolute fallback
+                base_pattern.append((root % 12) + min_octave * 12)
+        
+        source_down = list(reversed(arpeggio_source_notes))
+        for i in range(remaining_length):
+            if source_down: # Check if source_down is not empty
+                base_pattern.append(source_down[i % len(source_down)])
+            elif arpeggio_source_notes: # Fallback
+                base_pattern.append(list(reversed(arpeggio_source_notes))[i % len(list(reversed(arpeggio_source_notes)))])
+            else: # Absolute fallback
+                base_pattern.append((root % 12) + min_octave * 12)
+        # base_pattern is now of 'length' and ready.
     else:
-        base_pattern = []
+        # Original logic for 'up', 'down', 'random', 'order' that uses an intermediate 'pattern'
+        # which is then processed by repetition_factor.
+        intermediate_pattern = []
+        if arp_mode == 'up':
+            intermediate_pattern = list(arpeggio_source_notes)
+        elif arp_mode == 'down':
+            intermediate_pattern = list(reversed(arpeggio_source_notes))
+        elif arp_mode == 'random':
+            if arpeggio_source_notes: # Check for empty list
+                 intermediate_pattern = [random.choice(arpeggio_source_notes) for _ in range(len(arpeggio_source_notes))] # Create a pattern of same length as source for now
+            else:
+                 intermediate_pattern = [(root % 12 + min_octave * 12)]
+        elif arp_mode == 'order': 
+            intermediate_pattern = list(arpeggio_source_notes) 
+            random.shuffle(intermediate_pattern)
+        else: # Default or unrecognized arp_mode (should not happen if CLI is validated)
+            intermediate_pattern = list(arpeggio_source_notes) # Default to 'up' behavior for pattern source
+
+        if not intermediate_pattern: # Handle cases where pattern might be empty
+            intermediate_pattern = [(root % 12 + min_octave * 12)] # Fallback to root note if empty
+
+        # Adjust for repetition_factor using the intermediate_pattern
+        repetition_factor = max(1, min(10, repetition_factor))
+        if len(intermediate_pattern) > 0:
+            # Expand based on length of intermediate_pattern relative to desired final 'length'
+            expanded_pattern = intermediate_pattern * (length // len(intermediate_pattern) + 1)
+            if repetition_factor < 10:
+                for i in range(len(expanded_pattern)):
+                    if random.random() > (repetition_factor / 10):
+                        if arpeggio_source_notes: 
+                            expanded_pattern[i] = random.choice(arpeggio_source_notes)
+            base_pattern = expanded_pattern[:length]
+        else:
+            base_pattern = [] # Should be caught by earlier check, but as safeguard
+
+    # Ensure base_pattern is exactly `length` notes, especially if fallbacks occurred or length was 0.
+    if len(base_pattern) != length:
+        # If too short (e.g. length was 0 or pattern construction failed), fill with root note or truncate.
+        # This primarily guards against length=0 or issues if arpeggio_source_notes was initially empty.
+        if not arpeggio_source_notes and length > 0 : arpeggio_source_notes = [(root % 12 + min_octave * 12)]
+        
+        if length == 0: base_pattern = []
+        elif len(base_pattern) < length and arpeggio_source_notes:
+            # Tile the first note of arpeggio_source_notes to fill remaining space
+            filler_note = arpeggio_source_notes[0]
+            base_pattern.extend([filler_note] * (length - len(base_pattern)))
+        elif len(base_pattern) > length:
+            base_pattern = base_pattern[:length]
+        elif not base_pattern and length > 0 and arpeggio_source_notes: # Completely empty, fill from source
+             source_fill = list(arpeggio_source_notes)
+             for i in range(length):
+                 base_pattern.append(source_fill[i % len(source_fill)])
 
     # Rhythmic Variation (ensure base_pattern is not empty)
     if rhythmic_variation and base_pattern:
