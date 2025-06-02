@@ -4,7 +4,7 @@ from .arpeggio import create_arpeggio
 from .drone_generation import generate_drone_events 
 from .midi import create_midi_file
 from typing import Dict, List, Optional # Optional might be needed for arpeggio list
-from .effects import ShimmerEffect, HumanizeVelocityEffect
+from .effects import HumanizeVelocityEffect, TapeWobbleEffect
 from .effects_base import MidiEffect
 
 def create_arp(options: Dict):
@@ -42,15 +42,15 @@ def create_arp(options: Dict):
     repetition_factor = options.get('repetition_factor', 5)
 
     active_effects: List[MidiEffect] = []
-    if generation_type == 'arpeggio': # Effects are currently arpeggio-specific
-        effects_config = options.get('effects_config', [])
-        for effect_conf in effects_config:
-            effect_name = effect_conf.get('name')
-            effect_params = {k: v for k, v in effect_conf.items() if k != 'name'}
-            if effect_name == 'shimmer':
-                active_effects.append(ShimmerEffect(**effect_params))
-            elif effect_name == 'humanize_velocity':
-                active_effects.append(HumanizeVelocityEffect(**effect_params))
+    # Effects are now potentially applicable to both, TapeWobble handles type internally
+    effects_config = options.get('effects_config', [])
+    for effect_conf in effects_config:
+        effect_name = effect_conf.get('name')
+        effect_params = {k: v for k, v in effect_conf.items() if k != 'name'}
+        if effect_name == 'tape_wobble': # Changed from shimmer
+            active_effects.append(TapeWobbleEffect(**effect_params))
+        elif effect_name == 'humanize_velocity':
+            active_effects.append(HumanizeVelocityEffect(**effect_params))
 
     # This will hold the final list of events to be passed to create_midi_file
     # For arpeggios: List[Optional[int]] (flat list of 16th note steps)

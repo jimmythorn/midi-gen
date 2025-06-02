@@ -25,9 +25,14 @@ DEFAULT_RANGE_OCTAVES = 2 # Arpeggio specific
 DEFAULT_EVOLUTION_RATE = 0.35 # Arpeggio specific
 DEFAULT_REPETITION_FACTOR = 9 # Arpeggio specific
 
-DEFAULT_SHIMMER_ENABLED_BY_WOBBLE = False # Shimmer is off if wobble is 0
-DEFAULT_SHIMMER_WOBBLE_RANGE = 0.0
-DEFAULT_SHIMMER_SMOOTH_FACTOR = 0.675
+# New Tape Wobble Defaults
+DEFAULT_TAPE_WOBBLE_ENABLED = True
+DEFAULT_WOW_RATE_HZ = 0.5 # Centered, will be float internally
+DEFAULT_WOW_DEPTH_CENTS = 25 # Centered whole number
+DEFAULT_FLUTTER_RATE_HZ = 8 # Centered whole number, will be float internally
+DEFAULT_FLUTTER_DEPTH_CENTS = 5  # Centered whole number
+DEFAULT_WOBBLE_RANDOMNESS = 0.5 # Centered, will be float internally
+DEFAULT_WOBBLE_DEPTH_UNITS = 'cents' # or 'semitones'
 
 DEFAULT_HUMANIZE_ENABLED = True
 DEFAULT_HUMANIZE_RANGE = 10
@@ -180,18 +185,30 @@ if __name__ == "__main__":
     # This can be refined if drones get their own effect processing.
     print("\n--- Effects Configuration ---")
     effects_config: List[Dict] = []
-    enable_shimmer = questionary.confirm("Enable Shimmer effect?", default=(DEFAULT_SHIMMER_WOBBLE_RANGE > 0)).ask()
-    if enable_shimmer:
-        shimmer_wobble_range = float(questionary.text("Shimmer: Wobble range (semitones):", default=str(DEFAULT_SHIMMER_WOBBLE_RANGE)).ask() or DEFAULT_SHIMMER_WOBBLE_RANGE)
-        shimmer_smooth_factor = float(questionary.text("Shimmer: Smooth factor (0.0-1.0):", default=str(DEFAULT_SHIMMER_SMOOTH_FACTOR)).ask() or DEFAULT_SHIMMER_SMOOTH_FACTOR)
-        if shimmer_wobble_range > 0: 
-            effects_config.append({
-                'name': 'shimmer',
-                'wobble_range': shimmer_wobble_range,
-                'smooth_factor': shimmer_smooth_factor
-            })
 
-    enable_humanize = questionary.confirm("Enable Humanize Velocity effect?", default=DEFAULT_HUMANIZE_ENABLED).ask()
+    enable_tape_wobble = questionary.confirm("Enable Tape Wobble pitch effect?", default=DEFAULT_TAPE_WOBBLE_ENABLED).ask()
+    if enable_tape_wobble:
+        wow_rate = float(questionary.text("Wow Rate (Hz, slow pitch drift, e.g., 0.1-1.0):", default=str(DEFAULT_WOW_RATE_HZ)).ask() or DEFAULT_WOW_RATE_HZ)
+        wow_depth = float(questionary.text("Wow Depth (e.g., 5-50):", default=str(DEFAULT_WOW_DEPTH_CENTS)).ask() or DEFAULT_WOW_DEPTH_CENTS)
+        flutter_rate = float(questionary.text("Flutter Rate (Hz, faster pitch drift, e.g., 3-12):", default=str(DEFAULT_FLUTTER_RATE_HZ)).ask() or DEFAULT_FLUTTER_RATE_HZ)
+        flutter_depth = float(questionary.text("Flutter Depth (e.g., 1-10):", default=str(DEFAULT_FLUTTER_DEPTH_CENTS)).ask() or DEFAULT_FLUTTER_DEPTH_CENTS)
+        wobble_randomness = float(questionary.text("Wobble Randomness (0.0-1.0):", default=str(DEFAULT_WOBBLE_RANDOMNESS)).ask() or DEFAULT_WOBBLE_RANDOMNESS)
+        depth_units = questionary.select(
+            "Units for Wow/Flutter Depth?",
+            choices=['cents', 'semitones'],
+            default=DEFAULT_WOBBLE_DEPTH_UNITS
+        ).ask()
+        effects_config.append({
+            'name': 'tape_wobble',
+            'wow_rate_hz': wow_rate,
+            'wow_depth': wow_depth,
+            'flutter_rate_hz': flutter_rate,
+            'flutter_depth': flutter_depth,
+            'randomness': wobble_randomness,
+            'depth_units': depth_units
+        })
+
+    enable_humanize = questionary.confirm("Enable Humanize Velocity effect (for drones)?", default=DEFAULT_HUMANIZE_ENABLED).ask()
     if enable_humanize:
         humanize_range = int(questionary.text("Humanize: Velocity variation range:", default=str(DEFAULT_HUMANIZE_RANGE)).ask() or DEFAULT_HUMANIZE_RANGE)
         effects_config.append({
