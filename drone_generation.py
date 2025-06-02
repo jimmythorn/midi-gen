@@ -11,26 +11,31 @@ DEFAULT_DRONE_MIN_NOTES_HELD = 2 # Minimum notes of the chord to hold
 DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE = 0.25
 DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS = True
 DEFAULT_DRONE_OCTAVE_SHIFT_CHANCE = 0.1 # Chance for a note to shift its octave in an interval
+DEFAULT_DRONE_ENABLE_WALKDOWNS = True
+DEFAULT_DRONE_WALKDOWN_NUM_STEPS = 2
+DEFAULT_DRONE_WALKDOWN_STEP_TICKS = 120 # 16th at 480 TPQN
+DEFAULT_MINIMUM_TARGET_SUSTAIN_TICKS_FOR_WALKDOWN = 60 # Min duration for the target note after walkdown
 
 def generate_drone_events(options: Dict, processed_root_notes_midi: List[int]) -> List[MidiEvent]:
     """
-    Generates a list of structured MIDI events for a drone/pad.
-    Introduces variation by changing which notes of the chord are played
-    over sub-intervals within each root note's segment, ensuring a minimum
-    number of notes are always sounding.
+    Generates drone events with dynamic voicing, octave doubling/shifts, and melodic walkdowns.
     """
     bpm = options.get('bpm', 120)
     total_bars = options.get('bars', 16)
     mode = options.get('mode', 'major')
-    min_octave = options.get('min_octave', 3)
-    max_octave = options.get('max_octave', 5) # Used for clamping octave shifts/doubles
+    min_octave_param = options.get('min_octave', 3)
+    max_octave_param = options.get('max_octave', 5)
     base_velocity = options.get('drone_base_velocity', 70)
     
     variation_interval_bars = options.get('drone_variation_interval_bars', DEFAULT_DRONE_VARIATION_INTERVAL_BARS)
     min_notes_held = options.get('drone_min_notes_held', DEFAULT_DRONE_MIN_NOTES_HELD)
     octave_doubling_chance = options.get('drone_octave_doubling_chance', DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE)
     allow_octave_shifts = options.get('drone_allow_octave_shifts', DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS)
-    octave_shift_one_note_chance = options.get('drone_octave_shift_one_note_chance', DEFAULT_DRONE_OCTAVE_SHIFT_CHANCE) # Chance for one note in the interval to shift
+    octave_shift_one_note_chance = options.get('drone_octave_shift_one_note_chance', DEFAULT_DRONE_OCTAVE_SHIFT_CHANCE)
+    enable_walkdowns = options.get('drone_enable_walkdowns', DEFAULT_DRONE_ENABLE_WALKDOWNS)
+    walkdown_num_steps = options.get('drone_walkdown_num_steps', DEFAULT_DRONE_WALKDOWN_NUM_STEPS)
+    walkdown_step_ticks = options.get('drone_walkdown_step_ticks', DEFAULT_DRONE_WALKDOWN_STEP_TICKS)
+    min_target_sustain_ticks = options.get('min_target_sustain_ticks_for_walkdown', DEFAULT_MINIMUM_TARGET_SUSTAIN_TICKS_FOR_WALKDOWN)
 
     ticks_per_beat = 480
     ticks_per_bar = ticks_per_beat * 4
@@ -43,7 +48,7 @@ def generate_drone_events(options: Dict, processed_root_notes_midi: List[int]) -
         # Fallback for no root notes (unchanged)
         c3_midi = 48 
         drone_chord_notes_pc = get_scale(c3_midi, 'major', use_chord_tones=True) 
-        drone_chord_notes_abs = [pc + (min_octave * 12) for pc in drone_chord_notes_pc]
+        drone_chord_notes_abs = [pc + (min_octave_param * 12) for pc in drone_chord_notes_pc]
         drone_chord_notes_abs = [max(0, min(127, note)) for note in drone_chord_notes_abs]
         total_duration_ticks = total_bars * ticks_per_bar
         for note in drone_chord_notes_abs:
@@ -67,7 +72,7 @@ def generate_drone_events(options: Dict, processed_root_notes_midi: List[int]) -
         chord_tone_pitch_classes = get_scale(root_midi_note, mode, use_chord_tones=True)
         
         base_chord_notes = sorted(list(set([
-            max(0, min(127, pc + (min_octave * 12))) for pc in chord_tone_pitch_classes
+            max(0, min(127, pc + (min_octave_param * 12))) for pc in chord_tone_pitch_classes
         ])))
         if not base_chord_notes: # Fallback
             base_chord_notes = [max(0,min(127, root_midi_note))] 
@@ -85,76 +90,95 @@ def generate_drone_events(options: Dict, processed_root_notes_midi: List[int]) -
             interval_actual_duration_ticks = min(variation_interval_ticks, segment_duration_ticks - current_segment_tick_offset)
             if interval_actual_duration_ticks <= 0: break
 
-            current_interval_notes = [] # Notes chosen by base voicing pattern
+            interval_start_abs_tick = global_current_tick + current_segment_tick_offset
+            current_interval_base_notes = []
             if num_chord_notes < 3 or num_chord_notes < min_notes_held:
-                current_interval_notes = list(base_chord_notes)
+                current_interval_base_notes = list(base_chord_notes)
             else:
-                current_interval_notes.append(base_chord_notes[0]) # Always play root
-                pattern_index = variation_pattern_counter % 4
-                if pattern_index == 0 or pattern_index == 2: # Play all
-                    current_interval_notes.extend(base_chord_notes[1:])
-                elif pattern_index == 1: # Play Root + 5th (last note)
-                    if num_chord_notes > 1: current_interval_notes.append(base_chord_notes[num_chord_notes-1])
-                elif pattern_index == 3: # Play Root + 3rd (second note)
-                    if num_chord_notes > 1: current_interval_notes.append(base_chord_notes[1])
-            
-            current_interval_notes = sorted(list(set(current_interval_notes))) # Ensure unique notes from pattern
+                current_interval_base_notes.append(base_chord_notes[0]) # Root
+                pattern_idx = variation_pattern_counter % 4
+                if pattern_idx == 0 or pattern_idx == 2: current_interval_base_notes.extend(base_chord_notes[1:])
+                elif pattern_idx == 1 and num_chord_notes > 1: current_interval_base_notes.append(base_chord_notes[num_chord_notes-1]) # 5th-like
+                elif pattern_idx == 3 and num_chord_notes > 1: current_interval_base_notes.append(base_chord_notes[1]) # 3rd-like
+            current_interval_base_notes = sorted(list(set(current_interval_base_notes)))
+            if len(current_interval_base_notes) < min_notes_held and num_chord_notes >= min_notes_held:
+                needed = min_notes_held - len(current_interval_base_notes)
+                potential_adds = [n for n in base_chord_notes if n not in current_interval_base_notes]
+                current_interval_base_notes.extend(potential_adds[:needed])
+                current_interval_base_notes = sorted(list(set(current_interval_base_notes)))
 
-            # Ensure min_notes_held
-            if len(current_interval_notes) < min_notes_held and num_chord_notes >= min_notes_held:
-                needed = min_notes_held - len(current_interval_notes)
-                potential_adds = [n for n in base_chord_notes if n not in current_interval_notes]
-                current_interval_notes.extend(potential_adds[:needed])
-                current_interval_notes = sorted(list(set(current_interval_notes)))
-
-            final_notes_for_interval = list(current_interval_notes) # Start with notes from voicing pattern
-
-            # --- Octave Doubling & Shifting ---
-            notes_after_octave_fx = []
+            # 2. Apply octave shift to one note (if enabled) from the base voicing
+            notes_for_direct_play_and_doubling_source = list(current_interval_base_notes)
             shifted_one_note_this_interval = False
+            if allow_octave_shifts:
+                # Create a list of indices to shuffle for randomizing which note gets shifted
+                indices_to_try_shift = list(range(len(notes_for_direct_play_and_doubling_source)))
+                random.shuffle(indices_to_try_shift)
+                for i in indices_to_try_shift:
+                    note_to_potentially_shift = notes_for_direct_play_and_doubling_source[i]
+                    if random.random() < octave_shift_one_note_chance: # Apply overall chance here too
+                        direction = random.choice([-12, 12])
+                        shifted_note = note_to_potentially_shift + direction
+                        if min_octave_param * 12 <= shifted_note < (max_octave_param + 1) * 12 and 0 <= shifted_note <= 127:
+                            notes_for_direct_play_and_doubling_source[i] = shifted_note
+                            shifted_one_note_this_interval = True
+                            break # Only shift one note per interval
+            notes_for_direct_play_and_doubling_source = sorted(list(set(notes_for_direct_play_and_doubling_source)))
 
-            for note in current_interval_notes: # Iterate over notes from base pattern
-                original_note = note
-                # 1. Octave Shift (chance for one note in the selection to shift)
-                if allow_octave_shifts and not shifted_one_note_this_interval and random.random() < octave_shift_one_note_chance:
+            # 3. Add events for these (potentially shifted) main notes
+            for main_note in notes_for_direct_play_and_doubling_source:
+                final_drone_events.append((main_note, interval_start_abs_tick, interval_actual_duration_ticks, base_velocity))
+            
+            # 4. Process octave doubling (max one per interval, with walkdowns) for each of these main notes
+            has_doubled_a_note_this_interval = False
+            shuffled_sources_for_doubling = list(notes_for_direct_play_and_doubling_source) # Create a copy to shuffle
+            random.shuffle(shuffled_sources_for_doubling)
+
+            for note_being_doubled_source in shuffled_sources_for_doubling: 
+                if not has_doubled_a_note_this_interval and random.random() < octave_doubling_chance:
                     direction = random.choice([-12, 12])
-                    shifted_note = note + direction
-                    # Clamp to overall min/max octave boundaries, somewhat loosely
-                    if min_octave * 12 <= shifted_note < (max_octave + 1) * 12 and 0 <= shifted_note <= 127:
-                        note = shifted_note # The original note is now shifted for this interval
-                        shifted_one_note_this_interval = True # Only shift one note per interval
-                notes_after_octave_fx.append(note) # Add the (potentially shifted) note
+                    doubled_note_target = note_being_doubled_source + direction
+                    doubled_note_target = max(0, min(127, doubled_note_target))
+                    if not (min_octave_param * 12 <= doubled_note_target < (max_octave_param + 2) * 12):
+                        continue 
+                    can_walkdown = False
+                    total_walkdown_duration = 0
+                    if enable_walkdowns and walkdown_num_steps > 0 and walkdown_step_ticks > 0:
+                        total_walkdown_duration = walkdown_num_steps * walkdown_step_ticks
+                        if interval_actual_duration_ticks >= total_walkdown_duration + min_target_sustain_ticks:
+                            can_walkdown = True
+                    
+                    current_walk_start_offset_in_interval = 0 # For walkdown note placement within interval
+                    if can_walkdown:
+                        for step_idx in range(walkdown_num_steps):
+                            semitone_diff = (walkdown_num_steps - step_idx) 
+                            walk_note_pitch = (doubled_note_target - semitone_diff) if doubled_note_target > note_being_doubled_source else (doubled_note_target + semitone_diff)
+                            walk_note_pitch = max(0, min(127, walk_note_pitch))
+                            final_drone_events.append((
+                                walk_note_pitch, 
+                                interval_start_abs_tick + current_walk_start_offset_in_interval, 
+                                walkdown_step_ticks, 
+                                base_velocity - 10 # Slightly softer walk notes
+                            ))
+                            current_walk_start_offset_in_interval += walkdown_step_ticks
+                        
+                        final_drone_events.append((
+                            doubled_note_target, 
+                            interval_start_abs_tick + total_walkdown_duration, 
+                            interval_actual_duration_ticks - total_walkdown_duration, 
+                            base_velocity
+                        ))
+                    else: 
+                        final_drone_events.append((
+                            doubled_note_target, 
+                            interval_start_abs_tick, 
+                            interval_actual_duration_ticks, 
+                            base_velocity
+                        ))
+                    # Whether walkdown happened or not, if doubling was processed, set the flag and break
+                    has_doubled_a_note_this_interval = True 
+                    break # Stop after the first successful doubling in this interval
 
-                # 2. Octave Doubling (applies to the potentially shifted note)
-                if random.random() < octave_doubling_chance:
-                    direction = random.choice([-12, 12])
-                    doubled_note = note + direction
-                    # Clamp to MIDI range and somewhat to overall octaves
-                    if 0 <= doubled_note <= 127 and \
-                       (min_octave * 12 <= doubled_note < (max_octave + 2) * 12): # Allow doubling to go one octave beyond max_octave
-                        notes_after_octave_fx.append(doubled_note)
-            
-            final_notes_for_interval = sorted(list(set(notes_after_octave_fx))) # Update and make unique
-            
-            # Ensure min_notes_held again after octave effects, if it somehow reduced viable notes (e.g. all shifted out of range)
-            # This is a safeguard; ideally, clamping logic handles it.
-            if len(final_notes_for_interval) < min_notes_held and num_chord_notes >= min_notes_held:
-                final_notes_for_interval = list(current_interval_notes) # Revert to pre-octave FX if too few
-                needed = min_notes_held - len(final_notes_for_interval)
-                potential_adds = [n for n in base_chord_notes if n not in final_notes_for_interval]
-                final_notes_for_interval.extend(potential_adds[:needed])
-                final_notes_for_interval = sorted(list(set(final_notes_for_interval)))
-
-            print(f"[DRONE DETAIL] Seg {idx}, IVL {variation_pattern_counter}, Tick: {global_current_tick + current_segment_tick_offset}, Notes: {final_notes_for_interval}")
-
-            for note_to_play in final_notes_for_interval:
-                final_drone_events.append((
-                    note_to_play, 
-                    global_current_tick + current_segment_tick_offset, 
-                    interval_actual_duration_ticks, 
-                    base_velocity
-                ))
-            
             current_segment_tick_offset += interval_actual_duration_ticks
             variation_pattern_counter += 1
         

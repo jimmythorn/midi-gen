@@ -38,6 +38,19 @@ DEFAULT_DRONE_VARIATION_INTERVAL_BARS = 1 # How often the drone voicing can chan
 DEFAULT_DRONE_MIN_NOTES_HELD = 2 # Minimum notes of the chord to hold
 DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE = 0.25 # Chance to double a note an octave up/down
 DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS = True # Allow notes to shift octave during variation
+DEFAULT_DRONE_ENABLE_WALKDOWNS = True # Enable melodic walkdowns to doubled notes
+DEFAULT_DRONE_WALKDOWN_NUM_STEPS = 2 # Number of steps in the walkdown
+# DEFAULT_DRONE_WALKDOWN_STEP_TICKS = 120 # Duration of each walkdown step in MIDI ticks (120 = 16th note at 480 TPQN)
+
+# New selectable choices for walkdown step duration
+TICKS_PER_QUARTER_NOTE = 480
+WALKDOWN_DURATION_CHOICES = [
+    questionary.Choice("Eighth Note (fastest)", value=TICKS_PER_QUARTER_NOTE // 2), # 240 ticks
+    questionary.Choice("Quarter Note", value=TICKS_PER_QUARTER_NOTE),             # 480 ticks
+    questionary.Choice("Half Note", value=TICKS_PER_QUARTER_NOTE * 2),               # 960 ticks
+    questionary.Choice("Whole Note (slowest)", value=TICKS_PER_QUARTER_NOTE * 4)             # 1920 ticks
+]
+DEFAULT_DRONE_WALKDOWN_STEP_TICKS = WALKDOWN_DURATION_CHOICES[0].value # Default to Eighth Note
 
 if __name__ == "__main__":
     print("Welcome to the MIDI Generator!")
@@ -124,6 +137,9 @@ if __name__ == "__main__":
     drone_min_notes_held: Optional[int] = None
     drone_octave_doubling_chance: Optional[float] = None
     drone_allow_octave_shifts: Optional[bool] = None
+    drone_enable_walkdowns: Optional[bool] = None
+    drone_walkdown_num_steps: Optional[int] = None
+    drone_walkdown_step_ticks: Optional[int] = None
 
     if generation_type == 'drone':
         print("\n--- Drone Specific Settings ---")
@@ -144,7 +160,20 @@ if __name__ == "__main__":
             f"Allow drone notes to occasionally shift their primary octave?",
             default=DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS
         ).ask()
-        # Add more drone-specific questions here in the future
+        drone_enable_walkdowns = questionary.confirm(
+            f"Enable melodic walkdowns/ups to doubled octave notes?",
+            default=DEFAULT_DRONE_ENABLE_WALKDOWNS
+        ).ask()
+        if drone_enable_walkdowns:
+            drone_walkdown_num_steps = int(questionary.text(
+                f"Number of steps in walkdown (e.g., 1-3):",
+                default=str(DEFAULT_DRONE_WALKDOWN_NUM_STEPS)
+            ).ask() or DEFAULT_DRONE_WALKDOWN_NUM_STEPS)
+            drone_walkdown_step_ticks = questionary.select(
+                "Duration of each walkdown step:",
+                choices=WALKDOWN_DURATION_CHOICES,
+                default=DEFAULT_DRONE_WALKDOWN_STEP_TICKS
+            ).ask()
 
     # --- Effects Configuration (Currently more tied to arpeggios but could be generalized) ---
     # For now, let's ask for effects regardless, but they are only applied in arpeggio generation.
@@ -195,7 +224,10 @@ if __name__ == "__main__":
         'drone_variation_interval_bars': drone_variation_interval_bars,
         'drone_min_notes_held': drone_min_notes_held,
         'drone_octave_doubling_chance': drone_octave_doubling_chance,
-        'drone_allow_octave_shifts': drone_allow_octave_shifts
+        'drone_allow_octave_shifts': drone_allow_octave_shifts,
+        'drone_enable_walkdowns': drone_enable_walkdowns,
+        'drone_walkdown_num_steps': drone_walkdown_num_steps,
+        'drone_walkdown_step_ticks': drone_walkdown_step_ticks
     }
     
     if not use_multiple_root_notes or not root_notes_list:
