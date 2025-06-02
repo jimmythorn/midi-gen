@@ -34,6 +34,8 @@ DEFAULT_HUMANIZE_RANGE = 10
 
 # Drone specific defaults (can be expanded)
 DEFAULT_DRONE_BASE_VELOCITY = 70
+DEFAULT_DRONE_VARIATION_INTERVAL_BARS = 1 # How often the drone voicing can change
+DEFAULT_DRONE_MIN_NOTES_HELD = 2 # Minimum notes of the chord to hold
 
 if __name__ == "__main__":
     print("Welcome to the MIDI Generator!")
@@ -116,9 +118,20 @@ if __name__ == "__main__":
     
     # --- Drone Specific Questions (Placeholder for future) ---
     drone_base_velocity: Optional[int] = None
+    drone_variation_interval_bars: Optional[int] = None
+    drone_min_notes_held: Optional[int] = None
+
     if generation_type == 'drone':
         print("\n--- Drone Specific Settings ---")
         drone_base_velocity = int(questionary.text("Base MIDI velocity for drone notes (0-127):", default=str(DEFAULT_DRONE_BASE_VELOCITY)).ask() or DEFAULT_DRONE_BASE_VELOCITY)
+        drone_variation_interval_bars = int(questionary.text(
+            f"Drone variation interval in bars (how often voicing changes, e.g., 1-4):", 
+            default=str(DEFAULT_DRONE_VARIATION_INTERVAL_BARS)
+        ).ask() or DEFAULT_DRONE_VARIATION_INTERVAL_BARS)
+        drone_min_notes_held = int(questionary.text(
+            f"Minimum notes to hold in drone chord (e.g., 2):", 
+            default=str(DEFAULT_DRONE_MIN_NOTES_HELD)
+        ).ask() or DEFAULT_DRONE_MIN_NOTES_HELD)
         # Add more drone-specific questions here in the future
 
     # --- Effects Configuration (Currently more tied to arpeggios but could be generalized) ---
@@ -166,7 +179,9 @@ if __name__ == "__main__":
         'repetition_factor': repetition_factor,
 
         # Drone-specific - will be None if not drone type
-        'drone_base_velocity': drone_base_velocity 
+        'drone_base_velocity': drone_base_velocity,
+        'drone_variation_interval_bars': drone_variation_interval_bars,
+        'drone_min_notes_held': drone_min_notes_held
     }
     
     if not use_multiple_root_notes or not root_notes_list:
