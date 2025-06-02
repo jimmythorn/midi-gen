@@ -36,6 +36,8 @@ DEFAULT_HUMANIZE_RANGE = 10
 DEFAULT_DRONE_BASE_VELOCITY = 70
 DEFAULT_DRONE_VARIATION_INTERVAL_BARS = 1 # How often the drone voicing can change
 DEFAULT_DRONE_MIN_NOTES_HELD = 2 # Minimum notes of the chord to hold
+DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE = 0.25 # Chance to double a note an octave up/down
+DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS = True # Allow notes to shift octave during variation
 
 if __name__ == "__main__":
     print("Welcome to the MIDI Generator!")
@@ -120,6 +122,8 @@ if __name__ == "__main__":
     drone_base_velocity: Optional[int] = None
     drone_variation_interval_bars: Optional[int] = None
     drone_min_notes_held: Optional[int] = None
+    drone_octave_doubling_chance: Optional[float] = None
+    drone_allow_octave_shifts: Optional[bool] = None
 
     if generation_type == 'drone':
         print("\n--- Drone Specific Settings ---")
@@ -132,6 +136,14 @@ if __name__ == "__main__":
             f"Minimum notes to hold in drone chord (e.g., 2):", 
             default=str(DEFAULT_DRONE_MIN_NOTES_HELD)
         ).ask() or DEFAULT_DRONE_MIN_NOTES_HELD)
+        drone_octave_doubling_chance = float(questionary.text(
+            f"Chance (0.0-1.0) to double a drone note in another octave:",
+            default=str(DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE)
+        ).ask() or DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE)
+        drone_allow_octave_shifts = questionary.confirm(
+            f"Allow drone notes to occasionally shift their primary octave?",
+            default=DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS
+        ).ask()
         # Add more drone-specific questions here in the future
 
     # --- Effects Configuration (Currently more tied to arpeggios but could be generalized) ---
@@ -181,7 +193,9 @@ if __name__ == "__main__":
         # Drone-specific - will be None if not drone type
         'drone_base_velocity': drone_base_velocity,
         'drone_variation_interval_bars': drone_variation_interval_bars,
-        'drone_min_notes_held': drone_min_notes_held
+        'drone_min_notes_held': drone_min_notes_held,
+        'drone_octave_doubling_chance': drone_octave_doubling_chance,
+        'drone_allow_octave_shifts': drone_allow_octave_shifts
     }
     
     if not use_multiple_root_notes or not root_notes_list:
