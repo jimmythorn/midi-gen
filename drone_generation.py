@@ -153,8 +153,9 @@ def generate_drone_events(options: Dict, processed_root_notes_midi: List[int]) -
                     doubled_note_target = max(0, min(127, doubled_note_target))
                     if not (min_octave_param * 12 <= doubled_note_target < (max_octave_param + 2) * 12):
                         continue 
-                    can_walkdown = False
-                    total_walkdown_duration = 0
+                    actual_walk_notes_to_play: List[int] = [] # Initialize to empty list
+                    actual_total_walkdown_duration = 0
+                    
                     if enable_walkdowns and walkdown_num_steps_config > 0 and walkdown_step_ticks_config > 0:
                         potential_total_walkdown_duration = walkdown_num_steps_config * walkdown_step_ticks_config
                         if interval_actual_duration_ticks >= potential_total_walkdown_duration + min_target_sustain_ticks:
