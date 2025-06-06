@@ -4,7 +4,7 @@ from .arpeggio import create_arpeggio
 from .drone_generation import generate_drone_events 
 from .midi import create_midi_file
 from typing import Dict, List, Optional # Optional might be needed for arpeggio list
-from .effects import HumanizeVelocityEffect, TapeWobbleEffect
+from .effects import EffectRegistry
 from .effects_base import MidiEffect
 
 def create_arp(options: Dict):
@@ -41,16 +41,21 @@ def create_arp(options: Dict):
     evolution_rate = options.get('evolution_rate', 0.1)
     repetition_factor = options.get('repetition_factor', 5)
 
+    # Create effects using the registry
     active_effects: List[MidiEffect] = []
-    # Effects are now potentially applicable to both, TapeWobble handles type internally
     effects_config = options.get('effects_config', [])
+    
+    print("\n[DEBUG] Creating effects:")
     for effect_conf in effects_config:
-        effect_name = effect_conf.get('name')
-        effect_params = {k: v for k, v in effect_conf.items() if k != 'name'}
-        if effect_name == 'tape_wobble': # Changed from shimmer
-            active_effects.append(TapeWobbleEffect(**effect_params))
-        elif effect_name == 'humanize_velocity':
-            active_effects.append(HumanizeVelocityEffect(**effect_params))
+        effect_name = effect_conf.get('name', '')
+        print(f"[DEBUG] Processing effect: {effect_name}")
+        print(f"[DEBUG] Effect configuration: {effect_conf}")
+        
+        if effect := EffectRegistry.create_effect(effect_conf):
+            print(f"[DEBUG] Successfully created effect: {effect_name}")
+            active_effects.append(effect)
+        else:
+            print(f"[WARNING] Failed to create effect: {effect_name}")
 
     # This will hold the final list of events to be passed to create_midi_file
     # For arpeggios: List[Optional[int]] (flat list of 16th note steps)
@@ -122,6 +127,10 @@ def create_arp(options: Dict):
     
     # Create the MIDI file using the master event list
     result_filename = create_midi_file(final_event_list, options, active_effects)
-    print(f"MIDI file '{result_filename}' created with the following settings:")
-    for key, value in options.items():
-        print(f"- {key}: {value}")
+    print(f"\nMIDI file '{result_filename}' created with the following settings:")
+    print(f"  Generation Type: {generation_type}")
+    print(f"  Mode: {mode}")
+    print(f"  Root Notes: {root_notes_names_for_file}")
+    print(f"  Active Effects: {[type(effect).__name__ for effect in active_effects]}")
+
+    return result_filename

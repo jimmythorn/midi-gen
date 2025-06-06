@@ -1,15 +1,107 @@
+"""
+MIDI effect implementations.
+"""
+
 import random
 import math
-from typing import List, Optional, Dict, Union, cast
-from .effects_base import MidiEffect, NoteContext
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Union, cast, Tuple
+from .effects_base import (
+    MidiEffect, NoteContext, EffectConfiguration, EffectType,
+    create_note_context, convert_legacy_to_instructions
+)
 from .midi_types import (
     MidiInstruction, WobbleState, Tick, NoteValue, Velocity,
     MIDI_PITCH_BEND_CENTER, MIDI_PITCH_BEND_MIN, MIDI_PITCH_BEND_MAX,
     DEFAULT_PITCH_BEND_UPDATE_RATE, PITCH_BEND_THRESHOLD,
-    DEFAULT_WOW_RATE_HZ, DEFAULT_WOW_DEPTH,
-    DEFAULT_FLUTTER_RATE_HZ, DEFAULT_FLUTTER_DEPTH,
-    DEFAULT_RANDOMNESS
+    DEFAULT_BEND_UP_CENTS, DEFAULT_BEND_DOWN_CENTS,
+    DEFAULT_RANDOMNESS, DEFAULT_TICKS_PER_BEAT,
+    MIN_TIME_BETWEEN_BENDS_MS
 )
+
+class EffectRegistry:
+    """Registry for creating effects from parameter dictionaries."""
+    
+    @classmethod
+    def create_effect(cls, params: Dict) -> Optional[MidiEffect]:
+        """Create an effect instance from parameters."""
+        effect_type = params.get('name')
+        if not effect_type:
+            return None
+            
+        # Map effect names to their configuration and effect classes
+        effect_map = {
+            'tape_wobble': (TapeWobbleConfiguration, TapeWobbleEffect),
+            'humanize_velocity': (HumanizeVelocityConfiguration, HumanizeVelocityEffect)
+        }
+        
+        if effect_type not in effect_map:
+            return None
+            
+        # Get the configuration and effect classes
+        config_class, effect_class = effect_map[effect_type]
+        
+        # Filter parameters to only those accepted by the configuration
+        config_params = {
+            k: v for k, v in params.items() 
+            if k in config_class.__dataclass_fields__
+        }
+        
+        # Create and return the effect
+        try:
+            config = config_class(**config_params)
+            return effect_class(config=config)
+        except (ValueError, TypeError) as e:
+            print(f"Failed to create effect {effect_type}: {str(e)}")
+            return None
+
+# Constants for tape wobble effect
+SEMITONES_PER_BEND = 2.0  # Standard pitch bend range
+MIN_TIME_BETWEEN_BENDS_MS = 5.0  # Minimum time between pitch bend messages
+
+# Default values for tape wobble configuration
+DEFAULT_WOW_RATE_HZ = 0.5
+DEFAULT_WOW_DEPTH = 20.0  # cents
+DEFAULT_FLUTTER_RATE_HZ = 7.0
+DEFAULT_FLUTTER_DEPTH = 5.0  # cents
+DEFAULT_RANDOMNESS = 1.0
+DEFAULT_PITCH_BEND_UPDATE_RATE = 30.0
+
+@dataclass
+class HumanizeVelocityConfiguration(EffectConfiguration):
+    """Configuration for velocity humanization effect."""
+    humanization_range: int = 10  # Maximum velocity adjustment (±range/2)
+    
+    def __post_init__(self):
+        """Set default values for base configuration."""
+        self.effect_type = EffectType.NOTE_PROCESSOR  # This effect works on individual notes
+        self.priority = 100  # Apply early in the chain, before more complex effects
+
+@dataclass
+class TapeWobbleConfiguration(EffectConfiguration):
+    """Configuration for tape wobble effect."""
+    bend_up_cents: float = DEFAULT_BEND_UP_CENTS
+    bend_down_cents: float = DEFAULT_BEND_DOWN_CENTS
+    randomness: float = DEFAULT_RANDOMNESS
+    depth_units: str = 'cents'
+    pitch_bend_update_rate: float = DEFAULT_PITCH_BEND_UPDATE_RATE
+
+    def __post_init__(self):
+        """Validate configuration parameters and set effect type."""
+        self.effect_type = EffectType.SEQUENCE_PROCESSOR
+        self.priority = 200  # Run after note-level effects
+        
+        # Validate parameters
+        if self.bend_up_cents < 0:
+            raise ValueError("bend_up_cents must be positive")
+        if self.bend_down_cents < 0:
+            raise ValueError("bend_down_cents must be positive")
+        if not 0 <= self.randomness <= 1:
+            raise ValueError("randomness must be between 0 and 1")
+        if self.depth_units not in ['cents', 'semitones']:
+            raise ValueError("depth_units must be 'cents' or 'semitones'")
+        if self.pitch_bend_update_rate <= 0:
+            raise ValueError("pitch_bend_update_rate must be positive")
 
 # Legacy type for backward compatibility
 MidiEvent = tuple[int, int, int, int]  # (note, start_tick, duration_tick, velocity)
@@ -119,87 +211,75 @@ def tape_wobble(options: dict) -> List[tuple[float, int]]:
 
 # --- Tape Wobble Effect Class (replaces ShimmerEffect) ---
 class TapeWobbleEffect(MidiEffect):
-    def __init__(self, 
-                 wow_rate_hz: float = DEFAULT_WOW_RATE_HZ,
-                 wow_depth: float = DEFAULT_WOW_DEPTH,
-                 flutter_rate_hz: float = DEFAULT_FLUTTER_RATE_HZ,
-                 flutter_depth: float = DEFAULT_FLUTTER_DEPTH,
-                 randomness: float = DEFAULT_RANDOMNESS,
-                 depth_units: str = 'cents',
-                 pitch_bend_update_rate: float = DEFAULT_PITCH_BEND_UPDATE_RATE
-                 ):
-        self.wow_rate_hz = wow_rate_hz
-        self.wow_depth = wow_depth
-        self.flutter_rate_hz = flutter_rate_hz
-        self.flutter_depth = flutter_depth
-        self.randomness = randomness
-        self.depth_units = depth_units
-        self.pitch_bend_update_rate = pitch_bend_update_rate
+    """
+    Simulates tape machine pitch instability through wow and flutter effects.
+    This is a sequence-level processor that generates MIDI pitch bend messages.
+    """
+    
+    def __init__(self, config: Optional[TapeWobbleConfiguration] = None):
+        """Initialize with optional configuration."""
+        super().__init__(config or TapeWobbleConfiguration())
+        self.config = cast(TapeWobbleConfiguration, self.config)
         self.wobble_state = WobbleState()
-
-    def apply(self, event_list: List, options: Dict) -> Union[List[MidiInstruction], List]:
-        """
-        Applies tape wobble pitch modulation to a list of MIDI events.
-        Returns either a list of MidiInstructions (new format) or the original format
-        based on the options and compatibility settings.
-        """
-        generation_type = options.get('generation_type', 'arpeggio')
-        use_pitch_bend = options.get('use_pitch_bend', True)  # New option to control behavior
+    
+    def _validate_configuration(self) -> None:
+        """Configuration is already validated in TapeWobbleConfiguration.__post_init__"""
+        pass
+    
+    def _process_note_impl(self, ctx: NoteContext) -> NoteContext:
+        """Note-level processing is a no-op for this effect."""
+        return ctx
+    
+    def _process_sequence_impl(self, 
+                             events: List[Union[MidiInstruction, Tuple]], 
+                             options: Dict) -> List[MidiInstruction]:
+        """Process the complete sequence, adding pitch bend messages for the wobble effect."""
+        print("\n=== TapeWobbleEffect Processing ===")
         
-        if not use_pitch_bend:
-            return self._apply_legacy(event_list, options)
-        
-        return self._apply_pitch_bend(event_list, options)
-
-    def _apply_pitch_bend(self, event_list: List, options: Dict) -> List[MidiInstruction]:
-        print("\n=== Pitch Bend Application Debug ===")
-        
-        # Setup parameters
-        generation_type = options.get('generation_type', 'arpeggio')
+        # Get sequence parameters
         bpm = options.get('bpm', 120)
-        total_bars = options.get('bars', 16)
         ticks_per_beat = options.get('ticks_per_beat', DEFAULT_TICKS_PER_BEAT)
-        beats_per_bar = 4
-        midi_channel = 0
-
-        print(f"Generation Type: {generation_type}")
-        print(f"BPM: {bpm}")
-        print(f"Total Bars: {total_bars}")
-        print(f"Ticks per Beat: {ticks_per_beat}")
         
-        # Calculate duration
+        # First, analyze note lengths and positions
+        note_events = []
         max_tick = 0
-        if generation_type == 'arpeggio':
-            max_tick = total_bars * beats_per_bar * ticks_per_beat
-        elif generation_type == 'drone':
-            for _, start_tick, duration_tick, _ in event_list:
-                max_tick = max(max_tick, start_tick + duration_tick)
-
+        
+        for event in events:
+            if isinstance(event, tuple):
+                if isinstance(event[0], str):  # New format
+                    msg_type, tick, *params = event
+                    if msg_type == 'note_on':
+                        note_events.append((tick, params[0]))  # (start_tick, note)
+                    elif msg_type == 'note_off':
+                        max_tick = max(max_tick, tick)
+                else:  # Legacy format
+                    if len(event) >= 3:  # note, start_tick, duration_tick
+                        note, start_tick, duration_tick, *_ = event
+                        note_events.append((start_tick, note))
+                        max_tick = max(max_tick, start_tick + duration_tick)
+        
+        # Sort notes by start time
+        note_events.sort(key=lambda x: x[0])
+        
         total_duration_seconds = (max_tick / ticks_per_beat) * (60.0 / bpm)
-        print(f"Calculated Duration: {total_duration_seconds:.2f} seconds")
-
-        # Generate wobble data
-        wobble_options = {
-            'duration_sec': total_duration_seconds,
-            'wow_rate_hz': self.wow_rate_hz,
-            'wow_depth': self.wow_depth,
-            'flutter_rate_hz': self.flutter_rate_hz,
-            'flutter_depth': self.flutter_depth,
-            'randomness': self.randomness,
-            'depth_units': self.depth_units
-        }
+        print(f"Sequence duration: {total_duration_seconds:.2f} seconds")
+        print(f"BPM: {bpm}, Ticks per beat: {ticks_per_beat}")
+        print(f"Found {len(note_events)} notes")
         
-        bend_events = tape_wobble(wobble_options)
-        print(f"\nGenerated {len(bend_events)} bend events")
+        # Generate wobble data based on note positions
+        wobble_events = self._generate_wobble_events(
+            total_duration_seconds, 
+            bpm, 
+            ticks_per_beat,
+            note_events
+        )
         
-        if not bend_events:
-            print("No bend events generated, falling back to legacy mode")
-            return self._apply_legacy(event_list, options)
-
+        # Convert to MIDI instructions
+        midi_channel = 0
         midi_instructions: List[MidiInstruction] = []
-
-        # Add RPN messages
-        print("\nAdding RPN messages for pitch bend range configuration...")
+        
+        # Add RPN messages for pitch bend range
+        print("\nAdding RPN configuration messages...")
         midi_instructions.extend([
             ('control_change', 0, 101, 0, midi_channel),   # RPN MSB
             ('control_change', 0, 100, 0, midi_channel),   # RPN LSB
@@ -208,174 +288,175 @@ class TapeWobbleEffect(MidiEffect):
             ('control_change', 0, 101, 127, midi_channel), # Exit RPN mode
             ('control_change', 0, 100, 127, midi_channel)  # Exit RPN mode
         ])
-
-        # Process note events
-        print("\nProcessing note events...")
-        note_events = []
-        if generation_type == 'arpeggio':
-            steps_per_bar = 16
-            for step_index, note_midi in enumerate(event_list):
-                if note_midi is not None and note_midi > 0:
-                    step_ticks = (step_index * ticks_per_beat) // 4
-                    duration_ticks = ticks_per_beat // 4
-                    note_events.append((note_midi, step_ticks, duration_ticks, 64))
-        else:  # drone
-            note_events = event_list
-
-        print(f"Found {len(note_events)} note events")
-
-        # Add note events
-        note_count = 0
-        for note, start_tick, duration_tick, velocity in note_events:
-            if note > 0 and duration_tick > 0:
-                midi_instructions.append(('note_on', start_tick, note, velocity, midi_channel))
-                midi_instructions.append(('note_off', start_tick + duration_tick, note, 0, midi_channel))
-                note_count += 1
-
-        print(f"Added {note_count} notes ({note_count * 2} note on/off events)")
-
-        # Process pitch bends
-        print("\nProcessing pitch bend events...")
-        bend_count = 0
-        for time_sec, bend_value in bend_events:
+        
+        # Add original events
+        for event in events:
+            if isinstance(event, tuple):
+                midi_instructions.append(event)
+        
+        # Add pitch bend events
+        print("\nAdding pitch bend messages...")
+        for time_sec, bend_value in wobble_events:
             tick = int((time_sec * bpm * ticks_per_beat) / 60.0)
-            # Convert to 0-16383 range
-            converted_bend = bend_value + 8192
-            converted_bend = max(0, min(16383, converted_bend))
-            midi_instructions.append(('pitch_bend', tick, converted_bend, midi_channel))
-            bend_count += 1
-            
-            if bend_count <= 5 or bend_count % 50 == 0:  # Print first 5 and every 50th
-                print(f"Bend at {time_sec:.3f}s (tick {tick}): raw={bend_value}, "
-                      f"converted={converted_bend}")
-
-        print(f"\nTotal MIDI instructions generated: {len(midi_instructions)}")
-        print(f"  - RPN messages: 6")
-        print(f"  - Note events: {note_count * 2}")
-        print(f"  - Pitch bends: {bend_count}")
-        print("=====================================\n")
-
-        # Sort all instructions by tick
-        midi_instructions.sort(key=lambda x: (x[1], x[0] == 'note_on'))
+            midi_instructions.append(('pitch_bend', tick, bend_value, midi_channel))
+        
+        # Sort all instructions by tick and type
+        midi_instructions.sort(key=lambda x: (x[1], x[0] != 'note_off'))
         return midi_instructions
-
-    def _apply_legacy(self, event_list: List, options: Dict) -> List:
+    
+    def _generate_wobble_events(self, 
+                              duration_sec: float, 
+                              bpm: float, 
+                              ticks_per_beat: int,
+                              note_events: List[Tuple[int, int]]) -> List[Tuple[float, int]]:
         """
-        Legacy implementation for backward compatibility.
+        Generate note-synchronized wobble data points.
+        Each note alternates direction - if one note goes up, the next goes down.
+        Returns list of (time_sec, bend_value) tuples.
         """
-        generation_type = options.get('generation_type', 'arpeggio')
-        bpm = options.get('bpm', 120)
-        total_bars = options.get('bars', 16)
+        print("\nGenerating alternating note-synchronized wobble data...")
         
-        ticks_per_beat = options.get('ticks_per_beat', 480) # Get from options or default
-        beats_per_bar = 4 # Standard
-
-        total_duration_beats = total_bars * beats_per_bar
-        total_duration_seconds = (total_duration_beats / bpm) * 60.0
-
-        # Determine a reasonable internal sample rate for the wobble signal
-        # e.g., update pitch roughly every 16th note
-        # A 16th note duration in seconds: (60 / bpm / 4)
-        # If we want ~1 sample per 16th note, sample_rate_hz = bpm * 4 / 60
-        # Let's use a fixed rate or one based on density, e.g. 20-50Hz.
-        # For simplicity, let's use a fixed internal sample rate for wobble generation.
-        # If we make it too high, wobble_signal will be large.
-        # If too low, it won't capture flutter well for short notes.
-        # Let's aim for roughly 25-50 updates per second.
-        internal_wobble_sample_rate_hz = 30 
-
-
-        wobble_options = {
-            'duration_sec': total_duration_seconds,
-            'sample_rate_hz': internal_wobble_sample_rate_hz,
-            'wow_rate_hz': self.wow_rate_hz,
-            'wow_depth': self.wow_depth,
-            'flutter_rate_hz': self.flutter_rate_hz,
-            'flutter_depth': self.flutter_depth,
-            'randomness': self.randomness,
-            'output_units': 'semitones', # We want semitone offsets for direct pitch modification
-            'depth_units': self.depth_units
-        }
+        # Calculate musical time parameters
+        beats_per_bar = 4  # Assuming 4/4 time
+        seconds_per_beat = 60.0 / bpm
+        seconds_per_bar = seconds_per_beat * beats_per_bar
+        total_bars = duration_sec / seconds_per_bar
         
-        pitch_wobble_signal_semitones = tape_wobble(wobble_options)
+        print(f"Musical timing:")
+        print(f"  BPM: {bpm}")
+        print(f"  Total bars: {total_bars:.2f}")
+        print(f"  Seconds per bar: {seconds_per_bar:.2f}")
         
-        num_wobble_samples = len(pitch_wobble_signal_semitones)
-        if num_wobble_samples == 0:
-            return event_list # No wobble signal generated
-
-        modified_event_list = []
-
-        if generation_type == 'arpeggio':
-            # Arpeggio: event_list is List[Optional[int]], representing 16th notes
-            steps_per_bar = 16
-            total_steps = total_bars * steps_per_bar
+        # Calculate note timings in seconds
+        note_times = [(tick / ticks_per_beat * seconds_per_beat, note) 
+                     for tick, note in note_events]
+        
+        if not note_times:
+            note_times = [(0, 60)]  # Default note if no notes found
+        
+        # Randomly determine initial direction
+        first_note_up = random.choice([True, False])
+        print(f"\nInitial direction: {'UP' if first_note_up else 'DOWN'}")
+        
+        # Calculate optimal sample rate
+        sample_rate_hz = self.config.pitch_bend_update_rate
+        num_samples = int(duration_sec * sample_rate_hz)
+        
+        wobble_data: List[Tuple[float, int]] = []
+        last_emitted_value = 0
+        last_emission_time = 0.0
+        
+        # Add initial center point
+        wobble_data.append((0.0, 0))
+        print("\nGenerating pitch bend curve...")
+        
+        # Apply very slight random variation to max bend values
+        rand_factor = 1.0 + (random.random() - 0.5) * self.config.randomness
+        max_up_cents = self.config.bend_up_cents * rand_factor
+        rand_factor = 1.0 + (random.random() - 0.5) * self.config.randomness
+        max_down_cents = self.config.bend_down_cents * rand_factor
+        
+        print(f"Maximum bend values (with randomness):")
+        print(f"  Up: {max_up_cents:.1f} cents")
+        print(f"  Down: {max_down_cents:.1f} cents")
+        
+        for i in range(num_samples):
+            t = i / sample_rate_hz
             
-            for step_index, note_midi in enumerate(event_list):
-                if note_midi is not None:
-                    # Calculate current time in seconds for this step
-                    current_beat = step_index / (steps_per_bar / beats_per_bar)
-                    time_sec = (current_beat / bpm) * 60.0
-                    
-                    # Get corresponding sample from wobble signal
-                    wobble_sample_index = int(time_sec * internal_wobble_sample_rate_hz)
-                    if 0 <= wobble_sample_index < num_wobble_samples:
-                        pitch_offset_semitones = pitch_wobble_signal_semitones[wobble_sample_index]
-                        new_note_midi = round(note_midi + pitch_offset_semitones)
-                        new_note_midi = max(0, min(127, new_note_midi)) # Clamp
-                        modified_event_list.append(new_note_midi)
-                    else:
-                        modified_event_list.append(note_midi) # Out of bounds, use original
+            # Find current note segment
+            current_note_idx = 0
+            for idx, (note_time, _) in enumerate(note_times[1:], 1):
+                if t >= note_time:
+                    current_note_idx = idx
                 else:
-                    modified_event_list.append(None) # Rest
-            return modified_event_list
-
-        elif generation_type == 'drone':
-            # Drone: event_list is List[MidiEvent] = List[Tuple[note, start_tick, duration_tick, velocity]]
-            for event_tuple in event_list:
-                original_note, start_tick, duration_tick, velocity = event_tuple
+                    break
+            
+            # Calculate position within note
+            note_start_time = note_times[current_note_idx][0]
+            note_end_time = note_times[current_note_idx + 1][0] if current_note_idx + 1 < len(note_times) else duration_sec
+            note_duration = note_end_time - note_start_time
+            position_in_note = (t - note_start_time) / note_duration
+            
+            # Determine direction for this note (alternates each note)
+            note_goes_up = first_note_up if current_note_idx % 2 == 0 else not first_note_up
+            
+            # Calculate smooth curve using sine interpolation
+            curve_position = (1 - math.cos(position_in_note * math.pi)) / 2
+            
+            # Calculate bend amount in cents based on direction
+            if note_goes_up:
+                bend_cents = curve_position * max_up_cents
+            else:
+                bend_cents = -curve_position * max_down_cents
+            
+            # Convert to pitch bend value
+            if self.config.depth_units == 'cents':
+                semitones = bend_cents / 100.0
+            else:
+                semitones = bend_cents
+            
+            # Calculate bend value ensuring it stays within MIDO's required range
+            bend_value = int(round((semitones / SEMITONES_PER_BEND) * 8192))
+            bend_value = max(MIDI_PITCH_BEND_MIN, min(MIDI_PITCH_BEND_MAX, bend_value))
+            
+            # Determine if we should emit this value
+            time_since_last = t - last_emission_time
+            value_change = abs(bend_value - last_emitted_value)
+            
+            if (time_since_last >= MIN_TIME_BETWEEN_BENDS_MS / 1000.0 and 
+                (value_change >= PITCH_BEND_THRESHOLD or time_since_last >= 0.1)):
+                wobble_data.append((t, bend_value))
+                last_emitted_value = bend_value
+                last_emission_time = t
                 
-                # Calculate start time in seconds for this event
-                current_beat = start_tick / ticks_per_beat
-                time_sec = (current_beat / bpm) * 60.0
-
-                wobble_sample_index = int(time_sec * internal_wobble_sample_rate_hz)
-                if 0 <= wobble_sample_index < num_wobble_samples:
-                    pitch_offset_semitones = pitch_wobble_signal_semitones[wobble_sample_index]
-                    new_note_midi = round(original_note + pitch_offset_semitones)
-                    new_note_midi = max(0, min(127, new_note_midi)) # Clamp
-                    modified_event_list.append(
-                        (new_note_midi, start_tick, duration_tick, velocity)
-                    )
-                else:
-                    modified_event_list.append(event_tuple) # Out of bounds, use original
-            return modified_event_list
-            
-        else: # Unknown type
-            return event_list
+                # Log progress at key points
+                if position_in_note < 0.1 or len(wobble_data) <= 1:
+                    direction = "UP" if note_goes_up else "DOWN"
+                    print(f"Note {current_note_idx + 1} ({direction}): {bend_cents:+.1f} cents (bend: {bend_value:+d})")
+        
+        print(f"\nGenerated {len(wobble_data)} pitch bend points")
+        return wobble_data
 
 
 # Remove old HumanizeVelocityEffect if it's not used or if we are simplifying
 # For now, let's keep it as it's a different type of effect.
 class HumanizeVelocityEffect(MidiEffect):
-    def __init__(self, humanization_range: int = 10):
-        self.humanization_range = humanization_range
-
-    def apply(self, event_list: List, options: Dict) -> List:
-        # This effect is primarily designed for drone MidiEvent tuples
-        # but could be adapted if arpeggios also used structured events with velocity.
-        generation_type = options.get('generation_type', 'arpeggio')
-        if generation_type != 'drone':
-            # print("[HumanizeVelocityEffect] Skipping, not a drone.")
-            return event_list
-
-        modified_event_list = []
-        for event_tuple in event_list:
-            if isinstance(event_tuple, tuple) and len(event_tuple) == 4:
-                note, start_tick, duration_tick, velocity = event_tuple
-                adj_velocity = velocity + random.randint(-self.humanization_range // 2, self.humanization_range // 2)
-                adj_velocity = max(1, min(127, adj_velocity)) # MIDI velocity 1-127
-                modified_event_list.append((note, start_tick, duration_tick, adj_velocity))
-            else:
-                # Should not happen for drones, but good to be safe
-                modified_event_list.append(event_tuple)
-        return modified_event_list
+    """
+    Adds natural variation to note velocities to simulate human performance.
+    This is a note-level processor that adjusts each note's velocity independently.
+    """
+    
+    def __init__(self, config: Optional[HumanizeVelocityConfiguration] = None):
+        """Initialize with optional configuration."""
+        super().__init__(config or HumanizeVelocityConfiguration())
+        self.config = cast(HumanizeVelocityConfiguration, self.config)
+    
+    def _validate_configuration(self) -> None:
+        """Validate humanization range."""
+        if self.config.humanization_range < 0:
+            raise ValueError("Humanization range must be non-negative")
+        if self.config.humanization_range > 127:
+            raise ValueError("Humanization range cannot exceed maximum MIDI velocity (127)")
+    
+    def _process_note_impl(self, ctx: NoteContext) -> NoteContext:
+        """Apply velocity humanization to a single note."""
+        if ctx['velocity'] <= 0:  # Don't process note-off events
+            return ctx
+            
+        # Calculate velocity adjustment
+        adjustment = random.randint(
+            -self.config.humanization_range // 2,
+            self.config.humanization_range // 2
+        )
+        
+        # Create new context with adjusted velocity
+        new_ctx = ctx.copy()
+        new_ctx['velocity'] = max(1, min(127, ctx['velocity'] + adjustment))
+        return new_ctx
+    
+    def _process_sequence_impl(self, events: List[Union[MidiInstruction, Tuple]], 
+                             options: Dict) -> List[Union[MidiInstruction, Tuple]]:
+        """
+        Sequence processing is a no-op for this effect as it operates on individual notes.
+        """
+        return events
