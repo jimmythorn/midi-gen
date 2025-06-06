@@ -30,16 +30,14 @@ SEMITONES_PER_BEND = 2  # Standard pitch bend range in semitones
 DEFAULT_TICKS_PER_BEAT = 480
 
 # Performance Optimization Constants
-DEFAULT_PITCH_BEND_UPDATE_RATE = 20  # Hz, increased from 10 for smoother wobble
-PITCH_BEND_THRESHOLD = 16  # Reduced from 32 to allow more subtle variations
-MIN_TIME_BETWEEN_BENDS_MS = 50  # Reduced from 100 for more frequent updates
+DEFAULT_PITCH_BEND_UPDATE_RATE = 50  # Hz, for smooth transitions
+PITCH_BEND_THRESHOLD = 4  # Very small threshold for smoother curves
+MIN_TIME_BETWEEN_BENDS_MS = 20  # Quick updates for smooth movement
 
-# Wobble Effect Constants
-DEFAULT_WOW_RATE_HZ = 0.5      # Increased from 0.3 - slower, more obvious wave
-DEFAULT_WOW_DEPTH = 35         # Increased from 15 - more pronounced pitch variation
-DEFAULT_FLUTTER_RATE_HZ = 6.5  # Adjusted from 5 - slightly faster secondary modulation
-DEFAULT_FLUTTER_DEPTH = 8      # Increased from 3 - more noticeable flutter
-DEFAULT_RANDOMNESS = 0.15      # Slightly increased from 0.1 for more organic feel
+# Wobble Effect Constants - Bar-synchronized musical movement
+DEFAULT_BEND_UP_CENTS = 25.0    # Maximum upward bend
+DEFAULT_BEND_DOWN_CENTS = 23.0  # Maximum downward bend (slightly asymmetric)
+DEFAULT_RANDOMNESS = 0.05       # Very subtle variation for organic feel
 
 # Wobble State Management
 class WobbleState:
