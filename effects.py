@@ -233,36 +233,46 @@ class TapeWobbleEffect(MidiEffect):
     def _process_sequence_impl(self, 
                              events: List[Union[MidiInstruction, Tuple]], 
                              options: Dict) -> List[MidiInstruction]:
-        """
-        Process the complete sequence, adding pitch bend messages for the wobble effect.
-        """
+        """Process the complete sequence, adding pitch bend messages for the wobble effect."""
         print("\n=== TapeWobbleEffect Processing ===")
         
         # Get sequence parameters
         bpm = options.get('bpm', 120)
         ticks_per_beat = options.get('ticks_per_beat', DEFAULT_TICKS_PER_BEAT)
         
-        # Calculate total duration
-        max_tick = options.get('total_ticks', 0)
-        if not max_tick:
-            for event in events:
-                if isinstance(event, tuple):
-                    if isinstance(event[0], str):  # New format
-                        msg_type, tick, *params = event
-                        if msg_type == 'note_off':
-                            max_tick = max(max_tick, tick)
-                    else:  # Legacy format
-                        if len(event) >= 2:
-                            _, start_tick, duration_tick, *_ = event
-                            max_tick = max(max_tick, start_tick + duration_tick)
+        # First, analyze note lengths and positions
+        note_events = []
+        max_tick = 0
+        
+        for event in events:
+            if isinstance(event, tuple):
+                if isinstance(event[0], str):  # New format
+                    msg_type, tick, *params = event
+                    if msg_type == 'note_on':
+                        note_events.append((tick, params[0]))  # (start_tick, note)
+                    elif msg_type == 'note_off':
+                        max_tick = max(max_tick, tick)
+                else:  # Legacy format
+                    if len(event) >= 3:  # note, start_tick, duration_tick
+                        note, start_tick, duration_tick, *_ = event
+                        note_events.append((start_tick, note))
+                        max_tick = max(max_tick, start_tick + duration_tick)
+        
+        # Sort notes by start time
+        note_events.sort(key=lambda x: x[0])
         
         total_duration_seconds = (max_tick / ticks_per_beat) * (60.0 / bpm)
-        
         print(f"Sequence duration: {total_duration_seconds:.2f} seconds")
         print(f"BPM: {bpm}, Ticks per beat: {ticks_per_beat}")
+        print(f"Found {len(note_events)} notes")
         
-        # Generate wobble data
-        wobble_events = self._generate_wobble_events(total_duration_seconds, bpm, ticks_per_beat)
+        # Generate wobble data based on note positions
+        wobble_events = self._generate_wobble_events(
+            total_duration_seconds, 
+            bpm, 
+            ticks_per_beat,
+            note_events
+        )
         
         # Convert to MIDI instructions
         midi_channel = 0
@@ -294,12 +304,17 @@ class TapeWobbleEffect(MidiEffect):
         midi_instructions.sort(key=lambda x: (x[1], x[0] != 'note_off'))
         return midi_instructions
     
-    def _generate_wobble_events(self, duration_sec: float, bpm: float, ticks_per_beat: int) -> List[Tuple[float, int]]:
+    def _generate_wobble_events(self, 
+                              duration_sec: float, 
+                              bpm: float, 
+                              ticks_per_beat: int,
+                              note_events: List[Tuple[int, int]]) -> List[Tuple[float, int]]:
         """
-        Generate bar-synchronized wobble effect data points.
+        Generate note-synchronized wobble data points.
+        Each note alternates direction - if one note goes up, the next goes down.
         Returns list of (time_sec, bend_value) tuples.
         """
-        print("\nGenerating bar-synchronized wobble data...")
+        print("\nGenerating alternating note-synchronized wobble data...")
         
         # Calculate musical time parameters
         beats_per_bar = 4  # Assuming 4/4 time
@@ -312,9 +327,16 @@ class TapeWobbleEffect(MidiEffect):
         print(f"  Total bars: {total_bars:.2f}")
         print(f"  Seconds per bar: {seconds_per_bar:.2f}")
         
-        # Calculate wobble cycle parameters (one complete up-down cycle)
-        bars_per_cycle = total_bars  # Full sequence length
-        bars_per_direction = bars_per_cycle / 2  # Half for up, half for down
+        # Calculate note timings in seconds
+        note_times = [(tick / ticks_per_beat * seconds_per_beat, note) 
+                     for tick, note in note_events]
+        
+        if not note_times:
+            note_times = [(0, 60)]  # Default note if no notes found
+        
+        # Randomly determine initial direction
+        first_note_up = random.choice([True, False])
+        print(f"\nInitial direction: {'UP' if first_note_up else 'DOWN'}")
         
         # Calculate optimal sample rate
         sample_rate_hz = self.config.pitch_bend_update_rate
@@ -340,23 +362,32 @@ class TapeWobbleEffect(MidiEffect):
         
         for i in range(num_samples):
             t = i / sample_rate_hz
-            current_bar = t / seconds_per_bar
             
-            # Calculate position in the wobble cycle (0 to 1)
-            cycle_position = (current_bar % bars_per_cycle) / bars_per_cycle
+            # Find current note segment
+            current_note_idx = 0
+            for idx, (note_time, _) in enumerate(note_times[1:], 1):
+                if t >= note_time:
+                    current_note_idx = idx
+                else:
+                    break
             
-            # Determine if we're in the up or down phase
-            in_up_phase = cycle_position < 0.5
-            phase_position = (cycle_position * 2) % 1.0  # Position within current phase (0 to 1)
+            # Calculate position within note
+            note_start_time = note_times[current_note_idx][0]
+            note_end_time = note_times[current_note_idx + 1][0] if current_note_idx + 1 < len(note_times) else duration_sec
+            note_duration = note_end_time - note_start_time
+            position_in_note = (t - note_start_time) / note_duration
+            
+            # Determine direction for this note (alternates each note)
+            note_goes_up = first_note_up if current_note_idx % 2 == 0 else not first_note_up
             
             # Calculate smooth curve using sine interpolation
-            curve_position = (1 - math.cos(phase_position * math.pi)) / 2
+            curve_position = (1 - math.cos(position_in_note * math.pi)) / 2
             
-            # Calculate bend amount in cents
-            if in_up_phase:
+            # Calculate bend amount in cents based on direction
+            if note_goes_up:
                 bend_cents = curve_position * max_up_cents
             else:
-                bend_cents = (1 - curve_position) * max_up_cents - curve_position * max_down_cents
+                bend_cents = -curve_position * max_down_cents
             
             # Convert to pitch bend value
             if self.config.depth_units == 'cents':
@@ -379,8 +410,9 @@ class TapeWobbleEffect(MidiEffect):
                 last_emission_time = t
                 
                 # Log progress at key points
-                if current_bar % 1.0 < 0.1 or len(wobble_data) <= 1:
-                    print(f"Bar {current_bar:.1f}: {bend_cents:+.1f} cents (bend: {bend_value:+d})")
+                if position_in_note < 0.1 or len(wobble_data) <= 1:
+                    direction = "UP" if note_goes_up else "DOWN"
+                    print(f"Note {current_note_idx + 1} ({direction}): {bend_cents:+.1f} cents (bend: {bend_value:+d})")
         
         print(f"\nGenerated {len(wobble_data)} pitch bend points")
         return wobble_data

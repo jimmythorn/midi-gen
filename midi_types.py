@@ -34,9 +34,9 @@ DEFAULT_PITCH_BEND_UPDATE_RATE = 50  # Hz, for smooth transitions
 PITCH_BEND_THRESHOLD = 4  # Very small threshold for smoother curves
 MIN_TIME_BETWEEN_BENDS_MS = 20  # Quick updates for smooth movement
 
-# Wobble Effect Constants - Bar-synchronized musical movement
-DEFAULT_BEND_UP_CENTS = 25.0    # Maximum upward bend
-DEFAULT_BEND_DOWN_CENTS = 23.0  # Maximum downward bend (slightly asymmetric)
+# Wobble Effect Constants - Note-synchronized musical movement
+DEFAULT_BEND_UP_CENTS = 23.0    # Maximum upward bend
+DEFAULT_BEND_DOWN_CENTS = 21.0  # Maximum downward bend (slightly asymmetric)
 DEFAULT_RANDOMNESS = 0.05       # Very subtle variation for organic feel
 
 # Wobble State Management
