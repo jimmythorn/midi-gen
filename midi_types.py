@@ -12,7 +12,7 @@ NoteValue = int  # 0-127
 Tick = int      # MIDI tick count
 Velocity = int  # 0-127
 Channel = int   # 0-15
-BendValue = int # -8192 to 8191
+BendValue = int # -8192 to 8191 for MIDO compatibility
 
 # Core MIDI Instruction Types
 MidiInstruction = Union[
@@ -23,10 +23,10 @@ MidiInstruction = Union[
 ]
 
 # MIDI Constants
-MIDI_PITCH_BEND_CENTER = 0
-MIDI_PITCH_BEND_MIN = -8192
-MIDI_PITCH_BEND_MAX = 8191
-SEMITONES_PER_BEND = 2  # Standard ±2 semitones range
+MIDI_PITCH_BEND_MIN = -8192  # MIDO's minimum pitch bend value
+MIDI_PITCH_BEND_MAX = 8191   # MIDO's maximum pitch bend value
+MIDI_PITCH_BEND_CENTER = 0   # Center/no bend in MIDO's format
+SEMITONES_PER_BEND = 2  # Standard pitch bend range in semitones
 DEFAULT_TICKS_PER_BEAT = 480
 
 # Performance Optimization Constants
