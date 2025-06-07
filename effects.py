@@ -18,7 +18,6 @@ from .midi_types import (
     DEFAULT_RANDOMNESS, DEFAULT_TICKS_PER_BEAT,
     MIN_TIME_BETWEEN_BENDS_MS
 )
-from .rest_patterns.rest_processor import RestPatternEffect, RestPatternConfiguration
 
 class EffectRegistry:
     """Registry for MIDI effects."""
@@ -43,10 +42,7 @@ class EffectRegistry:
                 humanization_range=effect_conf.get('humanization_range', DEFAULT_HUMANIZE_RANGE)
             )
             return HumanizeVelocityEffect(config)
-            
-        elif effect_name == 'rest_pattern':
-            config = RestPatternConfiguration(effect_conf)
-            return RestPatternEffect(config)
+
             
         return None
 
