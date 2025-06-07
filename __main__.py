@@ -265,7 +265,7 @@ if __name__ == "__main__":
         'range_octaves': range_octaves,
         'evolution_rate': evolution_rate,
         'repetition_factor': repetition_factor,
-        'repeat_pattern': repeat_pattern if arp_steps < 16 else False,
+        'repeat_pattern': repeat_pattern if generation_type == 'arpeggio' and arp_steps is not None and arp_steps < 16 else False,
 
         # Drone-specific - will be None if not drone type
         'drone_base_velocity': drone_base_velocity,
