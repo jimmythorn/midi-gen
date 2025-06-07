@@ -208,7 +208,11 @@ if __name__ == "__main__":
             'depth_units': depth_units
         })
 
-    enable_humanize = questionary.confirm("Enable Humanize Velocity effect (for drones)?", default=DEFAULT_HUMANIZE_ENABLED).ask()
+    # Ask about humanization
+    enable_humanize = questionary.confirm(
+        "Enable Humanize Velocity effect? (adds natural variation to note velocities)",
+        default=DEFAULT_HUMANIZE_ENABLED
+    ).ask()
     if enable_humanize:
         humanize_range = int(questionary.text("Humanize: Velocity variation range:", default=str(DEFAULT_HUMANIZE_RANGE)).ask() or DEFAULT_HUMANIZE_RANGE)
         effects_config.append({
