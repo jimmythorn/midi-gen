@@ -18,42 +18,37 @@ from .midi_types import (
     DEFAULT_RANDOMNESS, DEFAULT_TICKS_PER_BEAT,
     MIN_TIME_BETWEEN_BENDS_MS
 )
+from .rest_patterns.rest_processor import RestPatternEffect, RestPatternConfiguration
 
 class EffectRegistry:
-    """Registry for creating effects from parameter dictionaries."""
+    """Registry for MIDI effects."""
     
     @classmethod
-    def create_effect(cls, params: Dict) -> Optional[MidiEffect]:
-        """Create an effect instance from parameters."""
-        effect_type = params.get('name')
-        if not effect_type:
-            return None
+    def create_effect(cls, effect_conf: Dict) -> Optional[MidiEffect]:
+        """Create an effect from configuration."""
+        effect_name = effect_conf.get('name', '')
+        
+        if effect_name == 'tape_wobble':
+            config = TapeWobbleConfiguration(
+                bend_up_cents=effect_conf.get('wow_depth', DEFAULT_BEND_UP_CENTS),
+                bend_down_cents=effect_conf.get('wow_depth', DEFAULT_BEND_DOWN_CENTS),
+                randomness=effect_conf.get('randomness', DEFAULT_RANDOMNESS),
+                depth_units=effect_conf.get('depth_units', 'cents'),
+                pitch_bend_update_rate=effect_conf.get('flutter_rate_hz', DEFAULT_PITCH_BEND_UPDATE_RATE)
+            )
+            return TapeWobbleEffect(config)
             
-        # Map effect names to their configuration and effect classes
-        effect_map = {
-            'tape_wobble': (TapeWobbleConfiguration, TapeWobbleEffect),
-            'humanize_velocity': (HumanizeVelocityConfiguration, HumanizeVelocityEffect)
-        }
-        
-        if effect_type not in effect_map:
-            return None
+        elif effect_name == 'humanize_velocity':
+            config = HumanizeVelocityConfiguration(
+                humanization_range=effect_conf.get('humanization_range', DEFAULT_HUMANIZE_RANGE)
+            )
+            return HumanizeVelocityEffect(config)
             
-        # Get the configuration and effect classes
-        config_class, effect_class = effect_map[effect_type]
-        
-        # Filter parameters to only those accepted by the configuration
-        config_params = {
-            k: v for k, v in params.items() 
-            if k in config_class.__dataclass_fields__
-        }
-        
-        # Create and return the effect
-        try:
-            config = config_class(**config_params)
-            return effect_class(config=config)
-        except (ValueError, TypeError) as e:
-            print(f"Failed to create effect {effect_type}: {str(e)}")
-            return None
+        elif effect_name == 'rest_pattern':
+            config = RestPatternConfiguration(effect_conf)
+            return RestPatternEffect(config)
+            
+        return None
 
 # Constants for tape wobble effect
 SEMITONES_PER_BEND = 2.0  # Standard pitch bend range

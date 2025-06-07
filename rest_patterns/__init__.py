@@ -1,49 +1,15 @@
 """
-Rest pattern generation module for MIDI sequences.
+Rest pattern generation module.
 """
 
-from .types import (
-    RestPatternType,
-    RestPattern,
-    Tick,
-    Step,
-    TICKS_PER_QUARTER,
-    STEPS_PER_BAR,
-    MIN_PATTERN_LENGTH,
-    MAX_PATTERN_LENGTH,
-    DEFAULT_REST_ENABLED,
-    DEFAULT_PATTERN_TYPE,
-    DEFAULT_MAINTAIN_RHYTHM
-)
-
-from .rest_config import (
-    BaseRestConfig,
-    FixedPatternConfig,
-    ProbabilityConfig,
-    MusicalPosConfig,
-    PhraseConfig,
-    RestPatternConfig
-)
+from .rest_config import RestPatternConfig
+from .rest_processor import RestPatternEffect, RestPatternConfiguration
+from .types import TICKS_PER_QUARTER, STEPS_PER_BAR
 
 __all__ = [
-    # Types and constants
-    'RestPatternType',
-    'RestPattern',
-    'Tick',
-    'Step',
+    'RestPatternConfig',
+    'RestPatternEffect',
+    'RestPatternConfiguration',
     'TICKS_PER_QUARTER',
-    'STEPS_PER_BAR',
-    'MIN_PATTERN_LENGTH',
-    'MAX_PATTERN_LENGTH',
-    'DEFAULT_REST_ENABLED',
-    'DEFAULT_PATTERN_TYPE',
-    'DEFAULT_MAINTAIN_RHYTHM',
-    
-    # Configuration classes
-    'BaseRestConfig',
-    'FixedPatternConfig',
-    'ProbabilityConfig',
-    'MusicalPosConfig',
-    'PhraseConfig',
-    'RestPatternConfig'
+    'STEPS_PER_BAR'
 ] 

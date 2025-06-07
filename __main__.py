@@ -13,6 +13,14 @@ DEFAULT_ROOT_NOTES = ["E4", "A4", "D4", "G4"]
 DEFAULT_MODE = 'minor'
 MODE_CHOICES = ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian']
 DEFAULT_ARP_STEPS = 8
+
+# Define step choices with musical note lengths
+ARP_STEP_CHOICES = [
+    questionary.Choice("16 steps (16th notes)", value=16),
+    questionary.Choice("8 steps (8th notes)", value=8),
+    questionary.Choice("4 steps (quarter notes)", value=4)
+]
+
 DEFAULT_MIN_OCTAVE = 3
 DEFAULT_MAX_OCTAVE = 5
 DEFAULT_BPM = 120
@@ -45,7 +53,6 @@ DEFAULT_DRONE_OCTAVE_DOUBLING_CHANCE = 0.25 # Chance to double a note an octave 
 DEFAULT_DRONE_ALLOW_OCTAVE_SHIFTS = True # Allow notes to shift octave during variation
 DEFAULT_DRONE_ENABLE_WALKDOWNS = True # Enable melodic walkdowns to doubled notes
 DEFAULT_DRONE_WALKDOWN_NUM_STEPS = 2 # Number of steps in the walkdown
-# DEFAULT_DRONE_WALKDOWN_STEP_TICKS = 120 # Duration of each walkdown step in MIDI ticks (120 = 16th note at 480 TPQN)
 
 # New selectable choices for walkdown step duration
 TICKS_PER_QUARTER_NOTE = 480
@@ -130,7 +137,14 @@ if __name__ == "__main__":
 
     if generation_type == 'arpeggio':
         print("\n--- Arpeggio Specific Settings ---")
-        arp_steps = int(questionary.text("Number of steps per arpeggio cycle:", default=str(DEFAULT_ARP_STEPS)).ask() or DEFAULT_ARP_STEPS)
+        print("Choose how many steps in your arpeggio cycle.")
+        print("Fewer steps = longer notes. The pattern will fill the entire bar.")
+        arp_steps = questionary.select(
+            "Steps per arpeggio cycle:",
+            choices=ARP_STEP_CHOICES,
+            default=8
+        ).ask()
+        
         arp_mode = questionary.select("Arpeggiator mode:", choices=ARP_MODE_CHOICES, default=DEFAULT_ARP_MODE).ask()
         range_octaves = int(questionary.text("Arpeggio range in octaves (from min_octave):", default=str(DEFAULT_RANGE_OCTAVES)).ask() or DEFAULT_RANGE_OCTAVES)
         evolution_rate = float(questionary.text("Arpeggio evolution rate (0.0 to 1.0):", default=str(DEFAULT_EVOLUTION_RATE)).ask() or DEFAULT_EVOLUTION_RATE)
