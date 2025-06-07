@@ -72,21 +72,28 @@ class HumanizeVelocityConfiguration(EffectConfiguration):
     """Configuration for velocity humanization effect."""
     base_velocity: int = 85  # Base velocity for notes (0-127)
     humanization_range: int = 10  # Maximum velocity adjustment (±range/2)
+    downbeat_emphasis: int = 4  # Additional velocity for downbeats
+    pattern_strength: float = 0.6  # How strongly to apply musical patterns (0-1)
+    trend_probability: float = 0.3  # Probability of starting a velocity trend
     
     def __post_init__(self):
         """Set default values and validate configuration."""
-        self.effect_type = EffectType.NOTE_PROCESSOR  # This effect works on individual notes
-        self.priority = 100  # Apply early in the chain, before more complex effects
+        self.effect_type = EffectType.NOTE_PROCESSOR
+        self.priority = 100  # Apply early in the chain
         
         # Validate velocity parameters
         if not 0 <= self.base_velocity <= 127:
             raise ValueError("base_velocity must be between 0 and 127")
         if self.humanization_range < 0:
             raise ValueError("humanization_range must be non-negative")
-        if self.base_velocity + (self.humanization_range / 2) > 127:
-            raise ValueError("base_velocity + (humanization_range/2) cannot exceed 127")
+        if self.base_velocity + (self.humanization_range / 2) + self.downbeat_emphasis > 127:
+            raise ValueError("base_velocity + (humanization_range/2) + downbeat_emphasis cannot exceed 127")
         if self.base_velocity - (self.humanization_range / 2) < 1:
             raise ValueError("base_velocity - (humanization_range/2) cannot be less than 1")
+        if not 0 <= self.pattern_strength <= 1:
+            raise ValueError("pattern_strength must be between 0 and 1")
+        if not 0 <= self.trend_probability <= 1:
+            raise ValueError("trend_probability must be between 0 and 1")
 
 @dataclass
 class TapeWobbleConfiguration(EffectConfiguration):
@@ -434,49 +441,129 @@ class TapeWobbleEffect(MidiEffect):
 class HumanizeVelocityEffect(MidiEffect):
     """
     Adds natural variation to note velocities to simulate human performance.
-    This is a note-level processor that adjusts each note's velocity independently.
+    Includes musical patterns like:
+    - First/last note emphasis
+    - Beat position awareness
+    - Gradual velocity trends
+    - Natural accent patterns
     """
     
     def __init__(self, config: Optional[HumanizeVelocityConfiguration] = None):
         """Initialize with optional configuration."""
         super().__init__(config or HumanizeVelocityConfiguration())
         self.config = cast(HumanizeVelocityConfiguration, self.config)
+        self._reset_state()
+    
+    def _reset_state(self) -> None:
+        """Reset the internal state for new sequence."""
+        self.current_trend: Optional[float] = None  # Direction of velocity trend
+        self.trend_remaining: int = 0  # How many notes remain in current trend
+        self.last_velocity: int = self.config.base_velocity
+        self.notes_processed: int = 0
     
     def _validate_configuration(self) -> None:
         """Configuration is already validated in HumanizeVelocityConfiguration.__post_init__"""
         pass
     
+    def _calculate_position_emphasis(self, ctx: NoteContext) -> int:
+        """Calculate velocity emphasis based on note position in sequence."""
+        is_first_note = ctx.get('is_first_note', False)
+        is_last_note = ctx.get('is_last_note', False)
+        
+        emphasis = 0
+        if is_first_note:
+            # First notes often slightly stronger
+            emphasis += int(3 * self.config.pattern_strength)
+        elif is_last_note:
+            # Last notes often slightly softer
+            emphasis -= int(2 * self.config.pattern_strength)
+        
+        return emphasis
+    
+    def _calculate_beat_emphasis(self, ctx: NoteContext) -> int:
+        """Calculate velocity emphasis based on beat position."""
+        tick = ctx.get('tick', 0)
+        ticks_per_beat = ctx.get('options', {}).get('ticks_per_beat', DEFAULT_TICKS_PER_BEAT)
+        
+        # Calculate beat position
+        beat_position = (tick % (ticks_per_beat * 4)) / ticks_per_beat
+        
+        emphasis = 0
+        if beat_position < 0.1:  # Downbeat
+            emphasis += int(self.config.downbeat_emphasis * self.config.pattern_strength)
+        elif abs(beat_position - 2) < 0.1:  # Backbeat
+            emphasis += int(2 * self.config.pattern_strength)
+        
+        return emphasis
+    
+    def _update_velocity_trend(self) -> int:
+        """Update and return the current velocity trend influence."""
+        if self.trend_remaining <= 0:
+            # Consider starting new trend
+            if random.random() < self.config.trend_probability:
+                self.current_trend = random.choice([-1.0, 1.0]) * self.config.pattern_strength
+                self.trend_remaining = random.randint(3, 8)  # Trend length
+            else:
+                self.current_trend = None
+        
+        if self.current_trend is not None:
+            self.trend_remaining -= 1
+            return int(self.current_trend * (self.config.humanization_range / 4))
+        return 0
+    
     def _process_note_impl(self, ctx: NoteContext) -> NoteContext:
-        """Apply velocity humanization to a single note."""
+        """Apply sophisticated velocity humanization to a single note."""
         if ctx['velocity'] <= 0:  # Don't process note-off events
             return ctx
-            
-        # If no velocity specified in context, use base velocity
+        
+        # Get base velocity
         if ctx['velocity'] == 64:  # Default MIDI velocity
             base = self.config.base_velocity
         else:
-            # If velocity was explicitly set, use that as base but ensure it's in valid range
             base = max(1, min(127, ctx['velocity']))
         
-        # Calculate velocity adjustment
-        adjustment = random.randint(
-            -self.config.humanization_range // 2,
-            self.config.humanization_range // 2
+        # Calculate various influences
+        position_emphasis = self._calculate_position_emphasis(ctx)
+        beat_emphasis = self._calculate_beat_emphasis(ctx)
+        trend_influence = self._update_velocity_trend()
+        
+        # Calculate random variation (smaller range now that we have other influences)
+        random_variation = random.randint(
+            -self.config.humanization_range // 3,
+            self.config.humanization_range // 3
+        )
+        
+        # Combine all influences
+        total_adjustment = (
+            position_emphasis +
+            beat_emphasis +
+            trend_influence +
+            random_variation
         )
         
         # Create new context with adjusted velocity
         new_ctx = ctx.copy()
-        new_ctx['velocity'] = max(1, min(127, base + adjustment))
+        new_velocity = max(1, min(127, base + total_adjustment))
+        new_ctx['velocity'] = new_velocity
         
-        # Debug output for significant changes
-        if abs(adjustment) > self.config.humanization_range // 4:
-            print(f"Note velocity adjusted: {base} -> {new_ctx['velocity']} ({adjustment:+d})")
+        # Debug output for significant changes or pattern events
+        if (abs(total_adjustment) > self.config.humanization_range // 3 or
+            position_emphasis != 0 or beat_emphasis != 0):
+            print(f"Note velocity adjusted: {base} -> {new_velocity} "
+                  f"(total: {total_adjustment:+d}, "
+                  f"pos: {position_emphasis:+d}, "
+                  f"beat: {beat_emphasis:+d}, "
+                  f"trend: {trend_influence:+d}, "
+                  f"random: {random_variation:+d})")
+        
+        # Update state
+        self.last_velocity = new_velocity
+        self.notes_processed += 1
         
         return new_ctx
     
     def _process_sequence_impl(self, events: List[Union[MidiInstruction, Tuple]], 
                              options: Dict) -> List[Union[MidiInstruction, Tuple]]:
-        """
-        Sequence processing is a no-op for this effect as it operates on individual notes.
-        """
+        """Reset state at start of sequence."""
+        self._reset_state()
         return events
