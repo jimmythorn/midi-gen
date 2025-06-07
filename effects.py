@@ -70,12 +70,23 @@ DEFAULT_PITCH_BEND_UPDATE_RATE = 30.0
 @dataclass
 class HumanizeVelocityConfiguration(EffectConfiguration):
     """Configuration for velocity humanization effect."""
+    base_velocity: int = 85  # Base velocity for notes (0-127)
     humanization_range: int = 10  # Maximum velocity adjustment (±range/2)
     
     def __post_init__(self):
-        """Set default values for base configuration."""
+        """Set default values and validate configuration."""
         self.effect_type = EffectType.NOTE_PROCESSOR  # This effect works on individual notes
         self.priority = 100  # Apply early in the chain, before more complex effects
+        
+        # Validate velocity parameters
+        if not 0 <= self.base_velocity <= 127:
+            raise ValueError("base_velocity must be between 0 and 127")
+        if self.humanization_range < 0:
+            raise ValueError("humanization_range must be non-negative")
+        if self.base_velocity + (self.humanization_range / 2) > 127:
+            raise ValueError("base_velocity + (humanization_range/2) cannot exceed 127")
+        if self.base_velocity - (self.humanization_range / 2) < 1:
+            raise ValueError("base_velocity - (humanization_range/2) cannot be less than 1")
 
 @dataclass
 class TapeWobbleConfiguration(EffectConfiguration):
@@ -432,17 +443,21 @@ class HumanizeVelocityEffect(MidiEffect):
         self.config = cast(HumanizeVelocityConfiguration, self.config)
     
     def _validate_configuration(self) -> None:
-        """Validate humanization range."""
-        if self.config.humanization_range < 0:
-            raise ValueError("Humanization range must be non-negative")
-        if self.config.humanization_range > 127:
-            raise ValueError("Humanization range cannot exceed maximum MIDI velocity (127)")
+        """Configuration is already validated in HumanizeVelocityConfiguration.__post_init__"""
+        pass
     
     def _process_note_impl(self, ctx: NoteContext) -> NoteContext:
         """Apply velocity humanization to a single note."""
         if ctx['velocity'] <= 0:  # Don't process note-off events
             return ctx
             
+        # If no velocity specified in context, use base velocity
+        if ctx['velocity'] == 64:  # Default MIDI velocity
+            base = self.config.base_velocity
+        else:
+            # If velocity was explicitly set, use that as base but ensure it's in valid range
+            base = max(1, min(127, ctx['velocity']))
+        
         # Calculate velocity adjustment
         adjustment = random.randint(
             -self.config.humanization_range // 2,
@@ -451,7 +466,12 @@ class HumanizeVelocityEffect(MidiEffect):
         
         # Create new context with adjusted velocity
         new_ctx = ctx.copy()
-        new_ctx['velocity'] = max(1, min(127, ctx['velocity'] + adjustment))
+        new_ctx['velocity'] = max(1, min(127, base + adjustment))
+        
+        # Debug output for significant changes
+        if abs(adjustment) > self.config.humanization_range // 4:
+            print(f"Note velocity adjusted: {base} -> {new_ctx['velocity']} ({adjustment:+d})")
+        
         return new_ctx
     
     def _process_sequence_impl(self, events: List[Union[MidiInstruction, Tuple]], 
