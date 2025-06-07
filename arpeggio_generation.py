@@ -58,24 +58,33 @@ def create_arp(options: Dict):
         else:
             print(f"[WARNING] Failed to create effect: {effect_name}")
 
-    # This will hold our flat list of notes
-    final_event_list: List[Optional[int]] = []
-
     if generation_type == 'arpeggio':
         # Each bar has 16 16th notes
         steps_per_bar = 16
         ticks_per_beat = 480  # Standard MIDI ticks per quarter note
         ticks_per_16th = ticks_per_beat // 4
         
-        # Calculate note length based on number of steps
-        # If arp_steps = 16, each note is a 16th note (1 step)
-        # If arp_steps = 8, each note is an 8th note (2 steps)
-        # If arp_steps = 4, each note is a quarter note (4 steps)
-        steps_per_note = steps_per_bar // arp_steps
+        # Get pattern repetition setting
+        repeat_pattern = options.get('repeat_pattern', False)
+        
+        # Calculate note length based on number of steps and repetition setting
+        # If repeating or using 16 steps: each note is a 16th note
+        # If not repeating: notes are longer (8th or quarter notes)
+        if arp_steps == 16 or repeat_pattern:
+            steps_per_note = 1  # 16th notes
+            repeats_per_bar = steps_per_bar // arp_steps
+        else:
+            steps_per_note = steps_per_bar // arp_steps  # 2 for 8 steps, 4 for 4 steps
+            repeats_per_bar = 1
         
         print(f"[DEBUG] Steps per bar: {steps_per_bar}")
         print(f"[DEBUG] Arp steps: {arp_steps}")
         print(f"[DEBUG] Steps per note: {steps_per_note}")
+        print(f"[DEBUG] Pattern repeats per bar: {repeats_per_bar}")
+        print(f"[DEBUG] Using {'16th' if steps_per_note == 1 else '8th' if steps_per_note == 2 else 'quarter'} notes")
+        
+        # This will hold our flat list of notes
+        final_event_list: List[Optional[int]] = []
         
         if processed_root_notes_midi:
             bars_per_segment = bars // len(processed_root_notes_midi) if len(processed_root_notes_midi) > 0 else bars
@@ -98,11 +107,17 @@ def create_arp(options: Dict):
                     
                 # For each bar in this segment
                 for _ in range(num_bars_for_segment):
-                    # For each note in the pattern
-                    for note in arpeggio_cycle_pattern:
-                        # Add the note followed by None values to create the proper length
-                        final_event_list.append(note)  # The note itself
-                        final_event_list.extend([None] * (steps_per_note - 1))  # Fill remaining steps with None
+                    # Repeat the pattern if needed
+                    for _ in range(repeats_per_bar):
+                        # For each note in the pattern
+                        for note in arpeggio_cycle_pattern:
+                            if arp_steps == 16 or repeat_pattern:
+                                # When using 16th notes, just add the note
+                                final_event_list.append(note)
+                            else:
+                                # When using longer notes, add None values after each note
+                                final_event_list.append(note)  # The note itself
+                                final_event_list.extend([None] * (steps_per_note - 1))  # Fill remaining steps with None
 
         # Ensure total length matches bars * steps_per_bar
         total_expected_steps = bars * steps_per_bar

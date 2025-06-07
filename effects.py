@@ -62,6 +62,9 @@ DEFAULT_FLUTTER_DEPTH = 5.0  # cents
 DEFAULT_RANDOMNESS = 1.0
 DEFAULT_PITCH_BEND_UPDATE_RATE = 30.0
 
+# Default values for humanize velocity configuration
+DEFAULT_HUMANIZE_RANGE = 10
+
 @dataclass
 class HumanizeVelocityConfiguration(EffectConfiguration):
     """Configuration for velocity humanization effect."""

@@ -134,6 +134,7 @@ if __name__ == "__main__":
     range_octaves: Optional[int] = None # Arp specific
     evolution_rate: Optional[float] = None # Arp specific
     repetition_factor: Optional[int] = None # Arp specific
+    repeat_pattern: Optional[bool] = None # Arp specific
 
     if generation_type == 'arpeggio':
         print("\n--- Arpeggio Specific Settings ---")
@@ -144,6 +145,17 @@ if __name__ == "__main__":
             choices=ARP_STEP_CHOICES,
             default=8
         ).ask()
+        
+        # Ask about pattern repetition if using 8 or 4 steps
+        repeat_pattern = False
+        if arp_steps < 16:
+            print("\nYou can either:")
+            print(f"- Repeat the {arp_steps}-step pattern using 16th notes")
+            print(f"- Use longer notes ({arp_steps} {'8th' if arp_steps == 8 else 'quarter'} notes)")
+            repeat_pattern = questionary.confirm(
+                "Would you like to repeat the pattern using 16th notes?",
+                default=False
+            ).ask()
         
         arp_mode = questionary.select("Arpeggiator mode:", choices=ARP_MODE_CHOICES, default=DEFAULT_ARP_MODE).ask()
         range_octaves = int(questionary.text("Arpeggio range in octaves (from min_octave):", default=str(DEFAULT_RANGE_OCTAVES)).ask() or DEFAULT_RANGE_OCTAVES)
@@ -253,6 +265,7 @@ if __name__ == "__main__":
         'range_octaves': range_octaves,
         'evolution_rate': evolution_rate,
         'repetition_factor': repetition_factor,
+        'repeat_pattern': repeat_pattern if arp_steps < 16 else False,
 
         # Drone-specific - will be None if not drone type
         'drone_base_velocity': drone_base_velocity,
