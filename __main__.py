@@ -3,9 +3,19 @@
 
 # Removed sys.path modification block
 
-from .arpeggio_generation import create_arp # Updated to use package name
 from typing import Dict, List, Optional
-import questionary # Import questionary
+import questionary
+from midi_gen.generators.arpeggio import create_arpeggio
+from midi_gen.generators.drone import generate_drone_events
+from midi_gen.utils.midi import create_midi_file
+from midi_gen.utils.notes import note_str_to_midi, note_to_name
+from midi_gen.effects.base import MidiEffect, EffectRegistry
+from midi_gen.effects.registry import (
+    NoteContext, EffectConfiguration, EffectType,
+    create_note_context, convert_legacy_to_instructions
+)
+
+from midi_gen.arpeggio_generation import create_arp # Updated to use package name
 
 # Default values from the previous argparse setup
 DEFAULT_ROOT = 0

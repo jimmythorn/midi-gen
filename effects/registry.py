@@ -9,9 +9,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TypedDict, List, Dict, Union, Optional, Tuple, TypeVar, Generic
+from midi_gen.utils.midi_types import MidiInstruction, Tick, NoteValue, Velocity, Channel, BendValue
+import math
+import random
 
-from .midi_types import (
-    NoteValue, Velocity, Tick, MidiInstruction,
+from midi_gen.utils.midi_types import (
     MIDI_PITCH_BEND_CENTER, MIDI_PITCH_BEND_MIN, MIDI_PITCH_BEND_MAX
 )
 

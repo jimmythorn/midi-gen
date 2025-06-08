@@ -6,15 +6,16 @@ import mido
 from typing import Dict, List, Union, cast, Tuple, Optional
 # import random # No longer needed
 # import math # No longer needed
-from .effects_base import (
+from midi_gen.effects.registry import (
     MidiEffect, NoteContext, EffectChain,
     create_note_context, convert_legacy_to_instructions
 )
-from .effects import EffectRegistry
-from .midi_types import (
+from midi_gen.effects.base import EffectRegistry
+from midi_gen.utils.midi_types import (
     MidiInstruction, NoteValue, Velocity, Tick, BendValue,
-    MIDI_PITCH_BEND_CENTER, DEFAULT_TICKS_PER_BEAT
+    MIDI_PITCH_BEND_CENTER, DEFAULT_TICKS_PER_BEAT, Channel
 )
+import os
 
 # Removed calculate_note_length function as it's overcomplicated for fixed 16th notes
 

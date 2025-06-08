@@ -6,12 +6,12 @@ import random
 import math
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Union, cast, Tuple
-from .effects_base import (
+from midi_gen.utils.midi_types import MidiInstruction, Tick, NoteValue, Velocity, Channel, BendValue
+from midi_gen.effects.registry import (
     MidiEffect, NoteContext, EffectConfiguration, EffectType,
     create_note_context, convert_legacy_to_instructions
 )
-from .midi_types import (
-    MidiInstruction, WobbleState, Tick, NoteValue, Velocity,
+from midi_gen.utils.midi_types import (
     MIDI_PITCH_BEND_CENTER, MIDI_PITCH_BEND_MIN, MIDI_PITCH_BEND_MAX,
     DEFAULT_PITCH_BEND_UPDATE_RATE, PITCH_BEND_THRESHOLD,
     DEFAULT_BEND_UP_CENTS, DEFAULT_BEND_DOWN_CENTS,

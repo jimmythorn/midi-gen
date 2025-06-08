@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Dict, Optional
+import re
 
 def note_str_to_midi(note_str: str) -> int:
     """

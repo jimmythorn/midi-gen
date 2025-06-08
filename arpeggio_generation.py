@@ -1,11 +1,10 @@
 import os
-from .notes import note_str_to_midi, note_to_name
-from .arpeggio import create_arpeggio
-from .drone_generation import generate_drone_events 
-from .midi import create_midi_file
+from midi_gen.utils.notes import note_str_to_midi, note_to_name
+from midi_gen.generators.arpeggio import create_arpeggio
+from midi_gen.generators.drone import generate_drone_events 
+from midi_gen.utils.midi import create_midi_file
 from typing import Dict, List, Optional, Tuple
-from .effects import EffectRegistry
-from .effects_base import MidiEffect
+from midi_gen.effects.base import EffectRegistry, MidiEffect
 
 def create_arp(options: Dict):
     """
