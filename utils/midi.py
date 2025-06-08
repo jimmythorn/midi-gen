@@ -13,14 +13,12 @@ from midi_gen.effects.registry import (
 from midi_gen.effects.base import EffectRegistry
 from midi_gen.utils.midi_types import (
     MidiInstruction, NoteValue, Velocity, Tick, BendValue,
-    MIDI_PITCH_BEND_CENTER, DEFAULT_TICKS_PER_BEAT, Channel
+    MIDI_PITCH_BEND_CENTER, DEFAULT_TICKS_PER_BEAT, Channel,
+    MidiEvent
 )
 import os
 
 # Removed calculate_note_length function as it's overcomplicated for fixed 16th notes
-
-# Type alias for structured MIDI events
-MidiEvent = Tuple[int, int, int, int] # (note, start_tick, duration_tick, velocity)
 
 class MidiProcessor:
     """Handles MIDI event processing and effect application."""
@@ -158,6 +156,9 @@ def create_midi_file(
     
     # Process all events through the effect chain
     processed_events = processor.process_events(event_list, options)
+    
+    # Sort all events by tick time, and for same tick time, ensure note_offs come after note_ons
+    processed_events.sort(key=lambda x: (x[1], x[0] == 'note_off'))
     
     # Create MIDI file
     filename = options.get('filename', "output.mid")

@@ -220,6 +220,20 @@ def tape_wobble(options: dict) -> List[tuple[float, int]]:
     print("=====================================\n")
     return wobble_data
 
+@dataclass
+class WobbleState:
+    """State container for tape wobble effect."""
+    wow_phase: float = 0.0
+    flutter_phase: float = 0.0
+    last_bend_value: int = 0
+    last_bend_time: float = 0.0
+    
+    def reset(self):
+        """Reset state to initial values with random phase offsets."""
+        self.wow_phase = random.random() * 2 * math.pi
+        self.flutter_phase = random.random() * 2 * math.pi
+        self.last_bend_value = 0
+        self.last_bend_time = 0.0
 
 # --- Tape Wobble Effect Class (replaces ShimmerEffect) ---
 class TapeWobbleEffect(MidiEffect):

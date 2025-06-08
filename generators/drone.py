@@ -1,6 +1,7 @@
 import random # Added for future, more varied interest
 from typing import Dict, List, Tuple, Optional
 from midi_gen.core.scale import get_scale # To get chord tones
+from midi_gen.utils.midi_types import MidiEvent
 
 # Type alias for structured MIDI events, ensure it matches midi.py if ever moved to a common types file
 MidiEvent = Tuple[int, int, int, int] # (note, start_tick, duration_tick, velocity)

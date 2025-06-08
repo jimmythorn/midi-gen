@@ -14,6 +14,9 @@ Velocity = int  # 0-127
 Channel = int   # 0-15
 BendValue = int # -8192 to 8191 for MIDO compatibility
 
+# Legacy type for structured MIDI events
+MidiEvent = Tuple[int, int, int, int]  # (note, start_tick, duration_tick, velocity)
+
 # Core MIDI Instruction Types
 MidiInstruction = Union[
     Tuple[Literal['note_on'], Tick, NoteValue, Velocity, Channel],     # (type, tick, note, velocity, channel)
