@@ -15,7 +15,7 @@ from midi_gen.effects.registry import (
     create_note_context, convert_legacy_to_instructions
 )
 
-from midi_gen.arpeggio_generation import create_arp # Updated to use package name
+from midi_gen.core.generation import create_arp  # Updated to point to new location
 
 # Default values from the previous argparse setup
 DEFAULT_ROOT = 0
@@ -292,7 +292,7 @@ if __name__ == "__main__":
         options['root_notes'] = None 
         options['root'] = root_note_int 
     else:
-         options['root'] = 0 # Default if multiple root notes are primary for arpeggio logic, less relevant for drone with explicit roots
+        options['root'] = 0 # Default if multiple root notes are primary for arpeggio logic, less relevant for drone with explicit roots
 
     print("\nGenerating MIDI with the following options:")
     for key, value in options.items():

@@ -138,9 +138,9 @@ def create_arp(options: Dict):
     root_notes_names_for_file = '-'.join([note_to_name(note) for note in processed_root_notes_midi]) if processed_root_notes_midi else str(root)
     base_filename = f"{generation_type}_{mode}_{root_notes_names_for_file}"
     
-    output_folder = "generated"
-    current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path = os.path.join(current_script_dir, output_folder)
+    # Use project root directory instead of script directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    output_path = os.path.join(project_root, "generated")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     file_path = os.path.join(output_path, f"{base_filename}.mid")
