@@ -15,6 +15,7 @@ from midi_gen.effects.processors import (
     HumanizeVelocityConfiguration
 )
 import os
+from midi_gen.utils.notes import note_str_to_midi
 
 def main():
     """Main entry point."""
@@ -80,23 +81,28 @@ def main():
             raise ValueError("Drone configuration required for drone generation")
         
         # Create drone events
-        midi_events = generate_drone_events(
-            root_notes=config.common.root_notes,
-            mode=config.common.mode.value,
-            min_octave=config.common.min_octave,
-            max_octave=config.common.max_octave,
-            bpm=config.common.bpm,
-            bars=config.common.bars,
-            use_chord_tones=config.common.use_chord_tones,
-            base_velocity=config.drone.base_velocity,
-            variation_interval_bars=config.drone.variation_interval_bars,
-            min_notes_held=config.drone.min_notes_held,
-            octave_doubling_chance=config.drone.octave_doubling_chance,
-            allow_octave_shifts=config.drone.allow_octave_shifts,
-            enable_walkdowns=config.drone.enable_walkdowns,
-            walkdown_num_steps=config.drone.walkdown_num_steps,
-            walkdown_step_ticks=config.drone.walkdown_step_ticks
-        )
+        options = {
+            'bpm': config.common.bpm,
+            'bars': config.common.bars,
+            'mode': config.common.mode.value,
+            'min_octave': config.common.min_octave,
+            'max_octave': config.common.max_octave,
+            'use_chord_tones': config.common.use_chord_tones,
+            'drone_base_velocity': config.drone.base_velocity,
+            'drone_variation_interval_bars': config.drone.variation_interval_bars,
+            'drone_min_notes_held': config.drone.min_notes_held,
+            'drone_octave_doubling_chance': config.drone.octave_doubling_chance,
+            'drone_allow_octave_shifts': config.drone.allow_octave_shifts,
+            'drone_enable_walkdowns': config.drone.enable_walkdowns,
+            'drone_walkdown_num_steps': config.drone.walkdown_num_steps,
+            'drone_walkdown_step_ticks': config.drone.walkdown_step_ticks
+        }
+        
+        # Convert root notes from strings to MIDI numbers
+        processed_root_notes_midi = [note_str_to_midi(note) for note in config.common.root_notes]
+        
+        # Generate drone events
+        midi_events = generate_drone_events(options, processed_root_notes_midi)
         
         # Create descriptive filename
         root_notes_str = '_'.join(config.common.root_notes)
