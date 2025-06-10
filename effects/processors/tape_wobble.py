@@ -118,16 +118,16 @@ def generate_wobble_data(options: dict) -> List[tuple[float, int]]:
     for i in range(num_samples):
         t = i / sample_rate_hz
         
-        # Calculate components with smoother transitions
-        wow = (wow_depth * 0.5) * math.sin(2 * math.pi * wow_rate * t + wow_phase)  # Reduced depth
-        flutter = (flutter_depth * 0.5) * math.sin(2 * math.pi * flutter_rate * t + flutter_phase)  # Reduced depth
+        # Calculate components with full depth
+        wow = wow_depth * math.sin(2 * math.pi * wow_rate * t + wow_phase)
+        flutter = flutter_depth * math.sin(2 * math.pi * flutter_rate * t + flutter_phase)
         total_mod = wow + flutter
 
-        # Convert to pitch bend value with smoother scaling
+        # Convert to pitch bend value
         if depth_units == 'cents':
             semitones = total_mod / 100.0
         else:
-            semitones = total_mod * 0.5  # Reduce semitone range
+            semitones = total_mod
 
         bend_value = int(round((semitones / SEMITONES_PER_BEND) * 8192))
         bend_value = max(MIDI_PITCH_BEND_MIN, min(MIDI_PITCH_BEND_MAX, bend_value))
@@ -136,8 +136,8 @@ def generate_wobble_data(options: dict) -> List[tuple[float, int]]:
         time_since_last = t - last_emission_time
         value_change = abs(bend_value - last_emitted_value)
         
-        if (time_since_last >= (MIN_TIME_BETWEEN_BENDS_MS * 2) / 1000.0 and 
-            value_change >= PITCH_BEND_THRESHOLD * 2):
+        if (time_since_last >= MIN_TIME_BETWEEN_BENDS_MS / 1000.0 and 
+            value_change >= PITCH_BEND_THRESHOLD):
             wobble_data.append((t, bend_value))
             last_emitted_value = bend_value
             last_emission_time = t
@@ -194,15 +194,15 @@ class TapeWobbleEffect(MidiEffect):
         bpm = options.get('bpm', 120)
         ticks_per_beat = options.get('ticks_per_beat', 480)
         
-        # Generate wobble events
+        # Generate wobble events with full depth
         duration_sec = (max_tick / ticks_per_beat) * (60.0 / bpm)
         wobble_options = {
             'duration_sec': duration_sec,
             'wow_rate_hz': options.get('wow_rate_hz', DEFAULT_WOW_RATE_HZ),
-            'wow_depth': options.get('wow_depth', DEFAULT_WOW_DEPTH) * 0.5,  # Reduce depth
+            'wow_depth': options.get('wow_depth', DEFAULT_WOW_DEPTH),  # Use full depth
             'flutter_rate_hz': options.get('flutter_rate_hz', DEFAULT_FLUTTER_RATE_HZ),
-            'flutter_depth': options.get('flutter_depth', DEFAULT_FLUTTER_DEPTH) * 0.5,  # Reduce depth
-            'randomness': options.get('randomness', DEFAULT_RANDOMNESS) * 0.5,  # Reduce randomness
+            'flutter_depth': options.get('flutter_depth', DEFAULT_FLUTTER_DEPTH),  # Use full depth
+            'randomness': options.get('randomness', DEFAULT_RANDOMNESS),
             'depth_units': options.get('depth_units', 'cents')
         }
         
