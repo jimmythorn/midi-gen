@@ -6,10 +6,11 @@ import mido
 from typing import Dict, List, Union, cast, Tuple, Optional
 # import random # No longer needed
 # import math # No longer needed
-from midi_gen.effects.base import (
-    MidiEffect, NoteContext, EffectChain
+from midi_gen.effects.registry import (
+    MidiEffect, NoteContext, EffectChain,
+    create_note_context, convert_legacy_to_instructions
 )
-from midi_gen.effects.registry import EffectRegistry
+from midi_gen.effects.base import EffectRegistry
 from midi_gen.utils.midi_types import (
     MidiInstruction, NoteValue, Velocity, Tick, BendValue,
     MIDI_PITCH_BEND_CENTER, DEFAULT_TICKS_PER_BEAT, Channel,
@@ -17,47 +18,7 @@ from midi_gen.utils.midi_types import (
 )
 import os
 
-# Helper functions that were previously imported
-def create_note_context(
-    note: NoteValue,
-    velocity: Velocity,
-    tick: Tick,
-    options: Dict,
-    duration_ticks: Optional[int] = None,
-    is_first_note: bool = False,
-    is_last_note: bool = False
-) -> NoteContext:
-    """Create a note context for effect processing."""
-    return {
-        'note': note,
-        'velocity': velocity,
-        'channel': options.get('channel', 0),
-        'tick': tick,
-        'duration_ticks': duration_ticks,
-        'time_seconds': tick / (DEFAULT_TICKS_PER_BEAT * options.get('bpm', 120) / 60),
-        'bpm': options.get('bpm', 120),
-        'beat_position': (tick % DEFAULT_TICKS_PER_BEAT) / DEFAULT_TICKS_PER_BEAT,
-        'bar_position': tick // (DEFAULT_TICKS_PER_BEAT * 4),
-        'generation_type': options.get('generation_type', 'arpeggio'),
-        'is_first_note': is_first_note,
-        'is_last_note': is_last_note,
-        'processed_by': []
-    }
-
-def convert_legacy_to_instructions(events: List) -> List[MidiInstruction]:
-    """Convert legacy event format to MidiInstruction format."""
-    instructions: List[MidiInstruction] = []
-    for event in events:
-        if isinstance(event, tuple) and len(event) >= 4:
-            note, start_tick, duration_tick, velocity = event[:4]
-            channel = event[4] if len(event) > 4 else 0
-            
-            if duration_tick > 0:
-                instructions.extend([
-                    ('note_on', start_tick, note, velocity, channel),
-                    ('note_off', start_tick + duration_tick, note, 0, channel)
-                ])
-    return instructions
+# Removed calculate_note_length function as it's overcomplicated for fixed 16th notes
 
 class MidiProcessor:
     """Handles MIDI event processing and effect application."""

@@ -115,7 +115,7 @@ class EffectChain:
     
     def process_sequence(self, 
                         events: List[Union[MidiInstruction, Tuple]], 
-                             options: Dict) -> List[Union[MidiInstruction, Tuple]]:
+                        options: Dict) -> List[Union[MidiInstruction, Tuple]]:
         """Process the complete sequence through all applicable effects."""
         current_events = events
         for effect in self.effects:

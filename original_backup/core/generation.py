@@ -4,8 +4,7 @@ from midi_gen.generators.arpeggio import create_arpeggio
 from midi_gen.generators.drone import generate_drone_events 
 from midi_gen.utils.midi import create_midi_file
 from typing import Dict, List, Optional, Tuple
-from midi_gen.effects.base import MidiEffect
-from midi_gen.effects.registry import EffectRegistry
+from midi_gen.effects.base import EffectRegistry, MidiEffect
 
 def create_arp(options: Dict):
     """

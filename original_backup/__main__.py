@@ -9,11 +9,11 @@ from midi_gen.generators.arpeggio import create_arpeggio
 from midi_gen.generators.drone import generate_drone_events
 from midi_gen.utils.midi import create_midi_file
 from midi_gen.utils.notes import note_str_to_midi, note_to_name
-from midi_gen.effects.base import (
-    MidiEffect, NoteContext, EffectConfiguration, EffectType
+from midi_gen.effects.base import MidiEffect, EffectRegistry
+from midi_gen.effects.registry import (
+    NoteContext, EffectConfiguration, EffectType,
+    create_note_context, convert_legacy_to_instructions
 )
-from midi_gen.effects.registry import EffectRegistry
-from midi_gen.effects import create_note_context, convert_legacy_to_instructions
 
 from midi_gen.core.generation import create_arp  # Updated to point to new location
 

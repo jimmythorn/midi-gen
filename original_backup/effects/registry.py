@@ -6,15 +6,6 @@ This module provides the central registry for creating and managing MIDI effects
 
 from typing import Dict, Optional
 from .base import MidiEffect
-from .processors import (
-    TapeWobbleEffect,
-    TapeWobbleConfiguration,
-    HumanizeVelocityEffect,
-    HumanizeVelocityConfiguration,
-    DEFAULT_WOW_DEPTH,
-    DEFAULT_FLUTTER_RATE_HZ,
-    DEFAULT_HUMANIZE_RANGE
-)
 
 class EffectRegistry:
     """Registry for MIDI effects."""
@@ -34,18 +25,20 @@ class EffectRegistry:
         
         # Import effects only when needed to avoid circular imports
         if effect_name == 'tape_wobble':
+            from .processors.tape_wobble import TapeWobbleEffect, TapeWobbleConfiguration
             config = TapeWobbleConfiguration(
-                bend_up_cents=effect_conf.get('wow_depth', DEFAULT_WOW_DEPTH),
-                bend_down_cents=effect_conf.get('wow_depth', DEFAULT_WOW_DEPTH),
+                bend_up_cents=effect_conf.get('wow_depth'),
+                bend_down_cents=effect_conf.get('wow_depth'),
                 randomness=effect_conf.get('randomness'),
                 depth_units=effect_conf.get('depth_units', 'cents'),
-                pitch_bend_update_rate=effect_conf.get('flutter_rate_hz', DEFAULT_FLUTTER_RATE_HZ)
+                pitch_bend_update_rate=effect_conf.get('flutter_rate_hz')
             )
             return TapeWobbleEffect(config)
             
         elif effect_name == 'humanize_velocity':
+            from .processors.humanize import HumanizeVelocityEffect, HumanizeVelocityConfiguration
             config = HumanizeVelocityConfiguration(
-                humanization_range=effect_conf.get('humanization_range', DEFAULT_HUMANIZE_RANGE)
+                humanization_range=effect_conf.get('humanization_range')
             )
             return HumanizeVelocityEffect(config)
             
