@@ -7,7 +7,7 @@ by adding controlled randomness and musical emphasis to note velocities.
 
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Union, Optional, Tuple
+from typing import Dict, List, Union, Optional, Tuple, Sequence
 
 from midi_gen.effects.base import (
     MidiEffect,
@@ -15,7 +15,15 @@ from midi_gen.effects.base import (
     EffectType,
     NoteContext
 )
-from midi_gen.utils.midi_types import MidiInstruction
+from midi_gen.utils.midi_types import (
+    MidiEvent,
+    MidiEventType,
+    MidiInstruction,
+    Velocity,
+    NoteValue,
+    Channel,
+    Tick
+)
 
 # Default values for humanize velocity configuration
 DEFAULT_HUMANIZE_RANGE = 10
@@ -161,7 +169,19 @@ class HumanizeVelocityEffect(MidiEffect):
         return new_ctx
     
     def _process_sequence_impl(self, 
-                             events: List[Union[MidiInstruction, Tuple]], 
-                             options: Dict) -> List[Union[MidiInstruction, Tuple]]:
-        """Sequence-level processing is a no-op for this effect."""
-        return events 
+                             events: Sequence[MidiInstruction], 
+                             options: Dict) -> List[MidiEvent]:
+        """Convert sequence to use new MidiEvent type."""
+        result_events: List[MidiEvent] = []
+        
+        for event in events:
+            if isinstance(event, tuple):
+                try:
+                    midi_event = MidiEvent.from_legacy_tuple(event)
+                    result_events.append(midi_event)
+                except (ValueError, TypeError):
+                    continue
+            elif isinstance(event, MidiEvent):
+                result_events.append(event)
+        
+        return sorted(result_events) 

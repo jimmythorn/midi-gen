@@ -11,8 +11,11 @@ from .processors import (
     TapeWobbleConfiguration,
     HumanizeVelocityEffect,
     HumanizeVelocityConfiguration,
+    DEFAULT_WOW_RATE_HZ,
     DEFAULT_WOW_DEPTH,
     DEFAULT_FLUTTER_RATE_HZ,
+    DEFAULT_FLUTTER_DEPTH,
+    DEFAULT_RANDOMNESS,
     DEFAULT_HUMANIZE_RANGE
 )
 
@@ -35,11 +38,12 @@ class EffectRegistry:
         # Import effects only when needed to avoid circular imports
         if effect_name == 'tape_wobble':
             config = TapeWobbleConfiguration(
-                bend_up_cents=effect_conf.get('wow_depth', DEFAULT_WOW_DEPTH),
-                bend_down_cents=effect_conf.get('wow_depth', DEFAULT_WOW_DEPTH),
-                randomness=effect_conf.get('randomness'),
-                depth_units=effect_conf.get('depth_units', 'cents'),
-                pitch_bend_update_rate=effect_conf.get('flutter_rate_hz', DEFAULT_FLUTTER_RATE_HZ)
+                wow_rate_hz=effect_conf.get('wow_rate_hz', DEFAULT_WOW_RATE_HZ),
+                wow_depth=effect_conf.get('wow_depth', DEFAULT_WOW_DEPTH),
+                flutter_rate_hz=effect_conf.get('flutter_rate_hz', DEFAULT_FLUTTER_RATE_HZ),
+                flutter_depth=effect_conf.get('flutter_depth', DEFAULT_FLUTTER_DEPTH),
+                randomness=effect_conf.get('randomness', DEFAULT_RANDOMNESS),
+                depth_units=effect_conf.get('depth_units', 'cents')
             )
             return TapeWobbleEffect(config)
             
