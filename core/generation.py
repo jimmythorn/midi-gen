@@ -97,9 +97,18 @@ def create_arp(options: Dict):
 
                 # create_arpeggio returns a pattern for one cycle (length = arp_steps)
                 arpeggio_cycle_pattern = create_arpeggio(
-                    current_root_midi, mode, arp_steps, min_octave, max_octave, 
-                    arp_mode, range_octaves, use_chord_tones=use_chord_tones,
-                    evolution_rate=evolution_rate, repetition_factor=repetition_factor
+                    root_notes=[note_to_name(current_root_midi)],
+                    mode=mode,
+                    min_octave=min_octave,
+                    max_octave=max_octave,
+                    bars=1,  # We handle bars in the outer loop
+                    use_chord_tones=use_chord_tones,
+                    steps=arp_steps,
+                    arp_mode=arp_mode,
+                    range_octaves=range_octaves,
+                    evolution_rate=evolution_rate,
+                    repetition_factor=repetition_factor,
+                    repeat_pattern=repeat_pattern
                 )
                 
                 if not arpeggio_cycle_pattern:
