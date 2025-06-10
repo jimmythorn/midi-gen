@@ -57,7 +57,7 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
 1. **Setup Virtual Environment**
 
    ```bash
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate  # On Unix/macOS
    # or
    .\venv\Scripts\activate  # On Windows
@@ -72,7 +72,7 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
 3. **Run the Generator**
 
    ```bash
-   python -m midi_gen
+   python3 -m midi_gen
    ```
 
 4. **Configure Generation**
@@ -81,6 +81,36 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
      - BPM
      - Number of bars
      - Effect parameters
+
+## Testing
+
+The project uses pytest for testing. To run the tests:
+
+1. **Install Test Dependencies**
+
+   ```bash
+   pip install -r requirements.txt  # Includes pytest and pytest-mock
+   ```
+
+2. **Run Tests**
+
+   ```bash
+   python3 -m pytest
+   ```
+
+The test suite includes:
+
+- Unit tests for MIDI event generation
+- Integration tests for effect processing
+- Validation of pitch bend ranges
+- File output verification
+
+Test files are located in the `tests/` directory. Key test areas:
+
+- `test_midi_generation.py`: Core MIDI generation functionality
+- Tape wobble effect parameter validation
+- MIDI file creation and saving
+- Arpeggio pattern generation with different modes
 
 ## Effect Parameters
 
@@ -128,7 +158,14 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
    - Added pitch bend message generation
    - Optimized event generation and timing
 
-4. **Refinements**
+4. **Testing and Quality Assurance**
+
+   - Implemented comprehensive test suite
+   - Added continuous integration
+   - Automated testing of MIDI generation
+   - Validation of effect parameters
+
+5. **Refinements**
    - Added proper MIDI channel handling
    - Implemented RPN messages for pitch bend range
    - Added debug logging system
@@ -147,6 +184,8 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
 - Python 3.8+
 - mido
 - python-rtmidi (optional, for real-time MIDI output)
+- pytest (for running tests)
+- pytest-mock (for test mocking)
 
 ## Future Enhancements
 
@@ -156,3 +195,4 @@ A Python-based MIDI generation tool that creates musical sequences with customiz
 - GUI interface
 - MIDI input processing
 - Additional humanization options
+- Expanded test coverage
